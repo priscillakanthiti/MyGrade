@@ -1,5 +1,7 @@
+import { gradeFromPercentage } from './grading';
+
 // Total = all marks added together.
-// Maximum = number of subjects x their total marks (e.g. 9 x 100 = 900).
+// Maximum = sum of the subjects' total marks (e.g. 9 x 100 = 900).
 // Pass mark = half of the maximum. A total below half is a fail.
 export function computeResults(students, subjects, scores) {
   const lookup = new Map();
@@ -16,13 +18,15 @@ export function computeResults(students, subjects, scores) {
       return v === undefined ? null : v;
     });
     const total = marks.reduce((sum, m) => sum + (m === null ? 0 : m), 0);
+    const percentage = maxTotal > 0 ? (total / maxTotal) * 100 : 0;
     return {
       studentId: st.id,
       name: st.name,
       gender: st.gender,
       marks,
       total,
-      percentage: maxTotal > 0 ? (total / maxTotal) * 100 : 0,
+      percentage,
+      grade: gradeFromPercentage(percentage),
       missing: marks.filter((m) => m === null).length,
       passed: total >= passMark,
       rank: 0,

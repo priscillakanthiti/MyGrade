@@ -11,18 +11,25 @@ export default function Marks() {
   const sid = Number(subjectId);
 
   const [subject, setSubject] = useState(null);
+  const [term, setTerm] = useState(null);
   const [students, setStudents] = useState([]);
   const [values, setValues] = useState({});
   const [errors, setErrors] = useState({});
 
   const load = useCallback(async () => {
     setSubject(await db.getFirstAsync('SELECT * FROM subjects WHERE id = ?', sid));
+    const t = await db.getFirstAsync(
+      'SELECT * FROM terms WHERE class_id = ? AND is_current = 1', cid
+    );
+    setTerm(t);
     setStudents(
       await db.getAllAsync(
         'SELECT * FROM students WHERE class_id = ? ORDER BY name COLLATE NOCASE', cid
       )
     );
-    const scores = await db.getAllAsync('SELECT * FROM scores WHERE subject_id = ?', sid);
+    const scores = t
+      ? await db.getAllAsync('SELECT * FROM scores WHERE subject_id = ? AND term_id = ?', sid, t.id)
+      : [];
     const map = {};
     scores.forEach((s) => {
       if (s.score !== null) map[s.student_id] = String(s.score);
@@ -35,11 +42,14 @@ export default function Marks() {
 
   // Saves the moment the teacher leaves a box
   async function saveScore(studentId) {
-    if (!subject) return;
+    if (!subject || !term) return;
     const text = (values[studentId] || '').trim();
 
     if (text === '') {
-      await db.runAsync('DELETE FROM scores WHERE student_id = ? AND subject_id = ?', studentId, sid);
+      await db.runAsync(
+        'DELETE FROM scores WHERE student_id = ? AND subject_id = ? AND term_id = ?',
+        studentId, sid, term.id
+      );
       setErrors((e) => ({ ...e, [studentId]: false }));
       return;
     }
@@ -51,9 +61,9 @@ export default function Marks() {
     }
 
     await db.runAsync(
-      `INSERT INTO scores (student_id, subject_id, score) VALUES (?, ?, ?)
-       ON CONFLICT(student_id, subject_id) DO UPDATE SET score = excluded.score`,
-      studentId, sid, n
+      `INSERT INTO scores (student_id, subject_id, term_id, score) VALUES (?, ?, ?, ?)
+       ON CONFLICT(student_id, subject_id, term_id) DO UPDATE SET score = excluded.score`,
+      studentId, sid, term.id, n
     );
     setErrors((e) => ({ ...e, [studentId]: false }));
   }
@@ -63,6 +73,7 @@ export default function Marks() {
   ).length;
   const progress = students.length ? entered / students.length : 0;
   const title = subject ? `${subject.name} marks` : 'Enter marks';
+  const termLabel = term ? [term.name, term.year].filter(Boolean).join(' ') : '';
 
   if (students.length === 0) {
     return (
@@ -79,7 +90,7 @@ export default function Marks() {
 
       <View style={styles.summary}>
         <Text style={styles.heading}>{subject ? subject.name : ''}</Text>
-        <Text style={styles.sub}>Out of {subject ? subject.max_score : ''}</Text>
+        <Text style={styles.sub}>{termLabel}  •  Out of {subject ? subject.max_score : ''}</Text>
         <View style={styles.barBg}>
           <View style={[styles.barFill, { width: `${progress * 100}%` }]} />
         </View>

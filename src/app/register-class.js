@@ -20,10 +20,18 @@ export default function RegisterClass() {
       Alert.alert('Check input', 'Enter the class name, for example Standard 5A.');
       return;
     }
+    const termName = term.trim() || 'Term 1';
+
     const res = await db.runAsync(
       'INSERT INTO classes (teacher_id, name, term, year) VALUES (?, ?, ?, ?)',
-      teacherId, name.trim(), term.trim(), year.trim()
+      teacherId, name.trim(), termName, year.trim()
     );
+    // Every class starts with one current term that holds its marks
+    await db.runAsync(
+      'INSERT INTO terms (class_id, name, year, is_current) VALUES (?, ?, ?, 1)',
+      res.lastInsertRowId, termName, year.trim()
+    );
+
     setSelectedClassId(res.lastInsertRowId);
     router.replace('/');
   }

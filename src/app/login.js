@@ -1,19 +1,24 @@
 import { useState } from 'react';
 import {
   View, Text, TextInput, Pressable, ScrollView, StyleSheet,
-  KeyboardAvoidingView, Platform, Alert,
+  KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import { useAuth } from '../auth/AuthContext';
 import SchoolLogo from '../components/SchoolLogo';
+import QuestionPicker from '../components/QuestionPicker';
 import { theme } from '../theme';
 
 export default function Login() {
+  const router = useRouter();
   const { login, register } = useAuth();
   const [mode, setMode] = useState('login');
   const [name, setName] = useState('');
   const [username, setUsername] = useState('');
   const [pin, setPin] = useState('');
+  const [question, setQuestion] = useState('');
+  const [answer, setAnswer] = useState('');
   const [showPin, setShowPin] = useState(false);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -23,7 +28,7 @@ export default function Login() {
     setBusy(true);
     const err = mode === 'login'
       ? await login(username, pin)
-      : await register(name, username, pin);
+      : await register(name, username, pin, question, answer);
     setBusy(false);
     if (err) setError(err);
   }
@@ -31,13 +36,6 @@ export default function Login() {
   function switchMode() {
     setMode(mode === 'login' ? 'register' : 'login');
     setError('');
-  }
-
-  function forgotPin() {
-    Alert.alert(
-      'Forgot PIN?',
-      'My Grade App works offline, so a PIN cannot be reset by email. Please contact the developer or your administrator for help.'
-    );
   }
 
   return (
@@ -95,6 +93,25 @@ export default function Login() {
             </Pressable>
           </View>
 
+          {mode === 'register' && (
+            <>
+              <Text style={styles.hint}>
+                Recovery question: used to reset your PIN if you forget it.
+              </Text>
+              <QuestionPicker value={question} onChange={setQuestion} />
+              <View style={styles.field}>
+                <Ionicons name="key-outline" size={22} color={theme.muted} />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Your answer"
+                  autoCapitalize="none"
+                  value={answer}
+                  onChangeText={setAnswer}
+                />
+              </View>
+            </>
+          )}
+
           {error ? <Text style={styles.error}>{error}</Text> : null}
 
           <Pressable style={[styles.primaryBtn, busy && { opacity: 0.6 }]} onPress={submit} disabled={busy}>
@@ -117,7 +134,7 @@ export default function Login() {
           </Pressable>
 
           {mode === 'login' && (
-            <Pressable onPress={forgotPin}>
+            <Pressable onPress={() => router.push('/forgot-pin')}>
               <Text style={styles.link}>Forgot PIN?</Text>
             </Pressable>
           )}
@@ -135,6 +152,7 @@ const styles = StyleSheet.create({
   school: { fontSize: 20, fontWeight: 'bold', color: theme.text, textAlign: 'center' },
   title: { fontSize: 30, fontWeight: 'bold', color: theme.text, textAlign: 'center', marginTop: 14 },
   sub: { textAlign: 'center', color: theme.muted, marginBottom: 6, fontSize: 16 },
+  hint: { color: theme.muted, fontSize: 13 },
   field: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
     backgroundColor: '#fff', borderWidth: 1, borderColor: theme.border,

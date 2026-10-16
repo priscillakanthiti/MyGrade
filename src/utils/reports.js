@@ -1,8 +1,9 @@
 import { Alert } from 'react-native';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
-import { resultStatus } from './format';
 import { File, Paths } from 'expo-file-system';
+import { resultStatus } from './format';
+import { GRADE_SCALE, gradeForMark, gradeLabel } from './grading';
 
 const SCHOOL = 'Catholic Institute Primary School';
 
@@ -19,36 +20,64 @@ function statusColor(status) {
   return '#8A6100';
 }
 
+function termText(term, cls) {
+  if (term) return [term.name, term.year].filter(Boolean).join(' ');
+  return [cls.term, cls.year].filter(Boolean).join(' ');
+}
+
 const baseStyles = `
-  body { font-family: Arial, Helvetica, sans-serif; color: #12294D; padding: 24px; }
-  h1 { text-align: center; margin: 0; font-size: 22px; color: #0F5AB4; }
-  h2 { text-align: center; margin: 4px 0 2px; font-size: 18px; }
-  .sub { text-align: center; color: #5C6F8C; margin: 2px 0; font-size: 13px; }
-  table { width: 100%; border-collapse: collapse; margin-top: 16px; font-size: 13px; }
-  th { background: #0F5AB4; color: white; padding: 8px; text-align: center; }
-  td { padding: 7px 8px; border-bottom: 1px solid #D5DFEE; text-align: center; }
+  body { font-family: Arial, Helvetica, sans-serif; color: #12294D; padding: 20px; }
+  h1 { text-align: center; margin: 0; font-size: 21px; color: #0F5AB4; }
+  h2 { text-align: center; margin: 4px 0 2px; font-size: 17px; }
+  .sub { text-align: center; color: #5C6F8C; margin: 2px 0; font-size: 12px; }
+  table { width: 100%; border-collapse: collapse; margin-top: 14px; font-size: 12px; }
+  th { background: #0F5AB4; color: white; padding: 7px 5px; text-align: center; }
+  td { padding: 6px 5px; border-bottom: 1px solid #D5DFEE; text-align: center; }
   td.left, th.left { text-align: left; }
   tr:nth-child(even) td { background: #F2F8FE; }
-  .box { border: 2px solid #0F5AB4; border-radius: 10px; padding: 10px; margin-top: 14px; text-align: center; font-size: 14px; }
-  .footer { margin-top: 24px; text-align: center; color: #5C6F8C; font-size: 11px; font-style: italic; }
+  .g { color: #5C6F8C; font-size: 11px; }
+  .box { border: 2px solid #0F5AB4; border-radius: 10px; padding: 9px; margin-top: 12px; text-align: center; font-size: 13px; }
+  .key { margin-top: 14px; font-size: 11px; color: #12294D; text-align: center; }
+  .footer { margin-top: 18px; text-align: center; color: #5C6F8C; font-size: 10px; font-style: italic; }
 `;
 
-// ---------- Class report ----------
-export function classReportHtml({ cls, rows, subjectCount, maxTotal, passMark }) {
+function gradeKeyHtml() {
+  const items = GRADE_SCALE.map(
+    (g) => `<b>Grade ${g.value}</b> ${g.label} (${g.range})`
+  ).join(' &nbsp;|&nbsp; ');
+  return `<p class="key">Grade key: ${items}</p>`;
+}
+
+// ---------- Class report (position, name, marks per subject with grade) ----------
+export function classReportHtml({ cls, term, subjects, rows, maxTotal, passMark }) {
   const complete = rows.filter((r) => r.missing === 0);
   const passed = complete.filter((r) => r.passed).length;
   const failed = complete.filter((r) => !r.passed).length;
   const incomplete = rows.length - complete.length;
 
+  const head = subjects
+    .map((s) => `<th>${esc(s.name)}<br/>/${s.max_score}</th>`)
+    .join('');
+
   const body = rows
     .map((r) => {
       const status = resultStatus(r);
+      const cells = subjects
+        .map((s, i) => {
+          const m = r.marks[i];
+          const g = gradeForMark(m, s.max_score);
+          return m === null
+            ? '<td>-</td>'
+            : `<td>${m} <span class="g">(${g})</span></td>`;
+        })
+        .join('');
       return `<tr>
         <td><b>${r.rank}</b></td>
         <td class="left">${esc(r.name)}</td>
-        <td>${esc(r.gender)}</td>
-        <td><b>${r.total} / ${maxTotal}</b></td>
+        ${cells}
+        <td><b>${r.total}/${maxTotal}</b></td>
         <td>${r.percentage.toFixed(1)}%</td>
+        <td><b>${r.grade}</b></td>
         <td style="color:${statusColor(status)};font-weight:bold">${status}</td>
       </tr>`;
     })
@@ -56,33 +85,36 @@ export function classReportHtml({ cls, rows, subjectCount, maxTotal, passMark })
 
   return `<html><head><meta charset="utf-8"/><style>${baseStyles}</style></head><body>
     <h1>${SCHOOL}</h1>
-    <h2>Class Results: ${esc(cls.name)}</h2>
-    <p class="sub">${esc([cls.term, cls.year].filter(Boolean).join('  |  '))}</p>
+    <h2>Class Report: ${esc(cls.name)}</h2>
+    <p class="sub">${esc(termText(term, cls))}</p>
     <div class="box">
-      ${rows.length} students &bull; ${subjectCount} subjects &bull; Total marks: ${maxTotal} &bull; Pass mark: ${passMark}<br/>
+      ${rows.length} students &bull; ${subjects.length} subjects &bull; Total marks: ${maxTotal} &bull; Pass mark: ${passMark}<br/>
       Passed: <b>${passed}</b> &nbsp; Failed: <b>${failed}</b>${incomplete > 0 ? ` &nbsp; Incomplete: <b>${incomplete}</b>` : ''}
     </div>
     <table>
       <tr>
-        <th>Pos</th><th class="left">Name</th><th>Sex</th><th>Total</th><th>%</th><th>Result</th>
+        <th>Pos</th><th class="left">Name</th>${head}<th>Total</th><th>%</th><th>Grade</th><th>Result</th>
       </tr>
       ${body}
     </table>
+    ${gradeKeyHtml()}
     <p class="footer">Generated by My Grade App</p>
   </body></html>`;
 }
 
 // ---------- Individual student report ----------
-export function studentReportHtml({ cls, subjects, row, classSize, maxTotal, passMark }) {
+export function studentReportHtml({ cls, term, subjects, row, classSize, maxTotal, passMark }) {
   const status = resultStatus(row);
 
   const body = subjects
     .map((s, i) => {
       const m = row.marks[i];
+      const g = gradeForMark(m, s.max_score);
       return `<tr>
         <td class="left">${esc(s.name)}</td>
         <td>${m === null ? '-' : m}</td>
         <td>${s.max_score}</td>
+        <td>${g === null ? '-' : `<b>${g}</b> <span class="g">${gradeLabel(g)}</span>`}</td>
       </tr>`;
     })
     .join('');
@@ -90,17 +122,18 @@ export function studentReportHtml({ cls, subjects, row, classSize, maxTotal, pas
   return `<html><head><meta charset="utf-8"/><style>${baseStyles}</style></head><body>
     <h1>${SCHOOL}</h1>
     <h2>Student Report</h2>
-    <p class="sub">${esc(cls.name)} &bull; ${esc([cls.term, cls.year].filter(Boolean).join('  |  '))}</p>
+    <p class="sub">${esc(cls.name)} &bull; ${esc(termText(term, cls))}</p>
     <div class="box">
-      <b style="font-size:17px">${esc(row.name)}</b> (${esc(row.gender)})
+      <b style="font-size:16px">${esc(row.name)}</b> (${esc(row.gender)})
     </div>
     <table>
-      <tr><th class="left">Subject</th><th>Mark</th><th>Out of</th></tr>
+      <tr><th class="left">Subject</th><th>Mark</th><th>Out of</th><th>Grade</th></tr>
       ${body}
       <tr>
         <td class="left"><b>TOTAL</b></td>
         <td><b>${row.total}</b></td>
         <td><b>${maxTotal}</b></td>
+        <td><b>${row.grade}</b> <span class="g">${gradeLabel(row.grade)}</span></td>
       </tr>
     </table>
     <div class="box">
@@ -109,14 +142,16 @@ export function studentReportHtml({ cls, subjects, row, classSize, maxTotal, pas
       Pass mark: ${passMark} &bull;
       Result: <b style="color:${statusColor(status)}">${status === 'Incomplete' ? 'Incomplete (marks missing)' : status.toUpperCase()}</b>
     </div>
+    ${gradeKeyHtml()}
     <p class="footer">Generated by My Grade App</p>
   </body></html>`;
 }
 
 // ---------- Create the PDF and open the share sheet ----------
-export async function sharePdf(html, fileName, dialogTitle) {
+// options example: { width: 842, height: 595 } for A4 landscape
+export async function sharePdf(html, fileName, dialogTitle, options) {
   try {
-    const { uri } = await Print.printToFileAsync({ html });
+    const { uri } = await Print.printToFileAsync({ html, ...(options || {}) });
 
     // Copy the PDF into the cache folder under a readable name, so it can be shared
     let shareUri = uri;
@@ -140,16 +175,13 @@ export async function sharePdf(html, fileName, dialogTitle) {
       Alert.alert('Sharing not available', 'Sharing is not available on this device.');
     }
   } catch (e) {
-    // Fallback: open the phone's print dialog, which has a "Save as PDF" option
+    // Fallback: the print screen has a "Save as PDF" option
     Alert.alert(
       'Could not share the PDF',
       'You can still save it as a PDF from the print screen.',
       [
         { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Open print screen',
-          onPress: () => Print.printAsync({ html }).catch(() => {}),
-        },
+        { text: 'Open print screen', onPress: () => Print.printAsync({ html }).catch(() => {}) },
       ]
     );
   }

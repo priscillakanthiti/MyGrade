@@ -26,10 +26,13 @@ function RootNav() {
         <Stack.Screen name="marks" options={{ title: 'Enter marks' }} />
         <Stack.Screen name="results" options={{ title: 'Results' }} />
         <Stack.Screen name="student-report" options={{ title: 'Student Report' }} />
+        <Stack.Screen name="new-term" options={{ title: 'Start New Term' }} />
+        <Stack.Screen name="account-security" options={{ title: 'Security' }} />
       </Stack.Protected>
       <Stack.Protected guard={!teacherId}>
         <Stack.Screen name="welcome" options={{ headerShown: false }} />
         <Stack.Screen name="login" options={{ headerShown: false }} />
+        <Stack.Screen name="forgot-pin" options={{ title: 'Reset PIN' }} />
       </Stack.Protected>
     </Stack>
   );
