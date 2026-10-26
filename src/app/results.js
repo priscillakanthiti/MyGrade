@@ -1,13 +1,30 @@
 import { useCallback, useEffect, useState } from 'react';
-import { View, Text, Pressable, ScrollView, StyleSheet } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Pressable, ScrollView, Text, View } from 'react-native';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useLocalSearchParams, useFocusEffect, useRouter, Stack } from 'expo-router';
 import { computeResults } from '../utils/ranking';
 import { resultStatus } from '../utils/format';
-import { GRADE_SCALE, gradeForMark } from '../utils/grading';
+import { gradeForMark } from '../utils/grading';
 import { classReportHtml, sharePdf } from '../utils/reports';
-import { theme } from '../theme';
+import Page from '../components/Page';
+import AppButton from '../components/AppButton';
+import Notice from '../components/Notice';
+import Segmented from '../components/Segmented';
+import StatTile from '../components/StatTile';
+import GradeKey from '../components/GradeKey';
+import styles from '../styles/results.styles';
+import { colors } from '../theme';
+
+const VIEWS = [
+  { label: 'Totals', value: 'totals' },
+  { label: 'Full report', value: 'full' },
+];
+
+function statusColor(status) {
+  if (status === 'Pass') return colors.success;
+  if (status === 'Fail') return colors.danger;
+  return colors.warning;
+}
 
 export default function Results() {
   const db = useSQLiteContext();
@@ -86,12 +103,6 @@ export default function Results() {
     });
   }
 
-  function statusStyle(status) {
-    if (status === 'Pass') return { color: theme.greenDark };
-    if (status === 'Fail') return { color: theme.danger };
-    return { color: '#8A6100' };
-  }
-
   if (subjects.length === 0 || rows.length === 0) {
     return (
       <View style={styles.centerMsg}>
@@ -102,74 +113,87 @@ export default function Results() {
   }
 
   const termLabel = activeTerm ? [activeTerm.name, activeTerm.year].filter(Boolean).join(' ') : '';
+  const isCurrent = !!activeTerm && activeTerm.is_current === 1;
+  const termOptions = terms.map((x) => ({
+    label: [x.name, x.year].filter(Boolean).join(' '),
+    value: x.id,
+  }));
 
   return (
-    <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.content}>
+    <Page>
       <Stack.Screen options={{ title: 'Results' }} />
 
       <View style={styles.header}>
         <Text style={styles.title}>{cls ? cls.name : ''}</Text>
-        <Text style={styles.sub}>{termLabel}{activeTerm && activeTerm.is_current === 1 ? '  (current term)' : '  (past term)'}</Text>
-        <Text style={styles.sub}>
-          {rows.length} students  •  {subjects.length} subjects  •  Total {maxTotal}  •  Pass mark {passMark}
-        </Text>
+        <Text style={styles.sub}>{termLabel}</Text>
+        <View
+          style={[
+            styles.termTag,
+            { backgroundColor: isCurrent ? colors.successSoft : colors.primarySoft },
+          ]}
+        >
+          <Text
+            style={[
+              styles.termTagText,
+              { color: isCurrent ? colors.success : colors.primaryDark },
+            ]}
+          >
+            {isCurrent ? 'CURRENT TERM' : 'PAST TERM'}
+          </Text>
+        </View>
+        <View style={styles.metaRow}>
+          <View style={styles.metaItem}>
+            <Text style={styles.metaValue}>{rows.length}</Text>
+            <Text style={styles.metaLabel}>Students</Text>
+          </View>
+          <View style={styles.metaItem}>
+            <Text style={styles.metaValue}>{subjects.length}</Text>
+            <Text style={styles.metaLabel}>Subjects</Text>
+          </View>
+          <View style={styles.metaItem}>
+            <Text style={styles.metaValue}>{maxTotal}</Text>
+            <Text style={styles.metaLabel}>Total</Text>
+          </View>
+          <View style={styles.metaItem}>
+            <Text style={styles.metaValue}>{passMark}</Text>
+            <Text style={styles.metaLabel}>Pass mark</Text>
+          </View>
+        </View>
       </View>
 
       {terms.length > 1 && (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
-          {terms.map((x) => (
-            <Pressable
-              key={x.id}
-              style={[styles.chip, activeTerm && x.id === activeTerm.id && styles.chipOn]}
-              onPress={() => setViewTermId(x.id)}
-            >
-              <Text style={[styles.chipText, activeTerm && x.id === activeTerm.id && styles.chipTextOn]}>
-                {[x.name, x.year].filter(Boolean).join(' ')}
-              </Text>
-            </Pressable>
-          ))}
-        </ScrollView>
+        <Segmented
+          scroll
+          options={termOptions}
+          value={activeTerm ? activeTerm.id : null}
+          onChange={setViewTermId}
+        />
       )}
 
-      <View style={styles.stats}>
-        <View style={[styles.stat, { backgroundColor: theme.green }]}>
-          <Text style={[styles.statNum, { color: theme.greenDark }]}>{passedCount}</Text>
-          <Text style={styles.statLabel}>Passed</Text>
-        </View>
-        <View style={[styles.stat, { backgroundColor: '#FDECEA' }]}>
-          <Text style={[styles.statNum, { color: theme.danger }]}>{failedCount}</Text>
-          <Text style={styles.statLabel}>Failed</Text>
-        </View>
+      <View style={styles.statsRow}>
+        <StatTile value={passedCount} label="Passed" tone="success" />
+        <StatTile value={failedCount} label="Failed" tone="danger" />
         {incompleteCount > 0 && (
-          <View style={[styles.stat, { backgroundColor: '#FFF4D6' }]}>
-            <Text style={[styles.statNum, { color: '#8A6100' }]}>{incompleteCount}</Text>
-            <Text style={styles.statLabel}>Incomplete</Text>
-          </View>
+          <StatTile value={incompleteCount} label="Incomplete" tone="warning" />
         )}
       </View>
 
-      <Pressable style={[styles.pdfBtn, busy && { opacity: 0.6 }]} onPress={exportPdf} disabled={busy}>
-        <Ionicons name="share-outline" size={22} color="#fff" />
-        <Text style={styles.pdfText}>{busy ? 'Creating PDF...' : 'Share class report (PDF)'}</Text>
-      </Pressable>
+      <AppButton
+        variant="navy"
+        icon="share-outline"
+        title={busy ? 'Creating PDF...' : 'Share class report (PDF)'}
+        onPress={exportPdf}
+        loading={busy}
+      />
 
       {incompleteCount > 0 && (
-        <View style={styles.warn}>
-          <Text style={styles.warnText}>
-            {incompleteCount} student{incompleteCount > 1 ? 's have' : ' has'} missing marks. A missing mark counts
-            as 0, and Pass/Fail shows once all marks are entered.
-          </Text>
-        </View>
+        <Notice tone="warning">
+          {incompleteCount} student{incompleteCount > 1 ? 's have' : ' has'} missing marks. A missing mark counts
+          as 0, and Pass/Fail shows once all marks are entered.
+        </Notice>
       )}
 
-      <View style={styles.toggle}>
-        <Pressable style={[styles.toggleBtn, view === 'totals' && styles.toggleOn]} onPress={() => setView('totals')}>
-          <Text style={[styles.toggleText, view === 'totals' && styles.toggleTextOn]}>Totals</Text>
-        </Pressable>
-        <Pressable style={[styles.toggleBtn, view === 'full' && styles.toggleOn]} onPress={() => setView('full')}>
-          <Text style={[styles.toggleText, view === 'full' && styles.toggleTextOn]}>Full report</Text>
-        </Pressable>
-      </View>
+      <Segmented options={VIEWS} value={view} onChange={setView} />
 
       <Text style={styles.hint}>Tap a student to open their individual report.</Text>
 
@@ -187,14 +211,16 @@ export default function Results() {
             return (
               <Pressable
                 key={r.studentId}
-                style={[styles.row, i % 2 === 1 && styles.altRow]}
+                style={({ pressed }) => [styles.row, i % 2 === 1 && styles.altRow, pressed && styles.pressed]}
                 onPress={() => openStudent(r.studentId)}
               >
                 <Text style={[styles.cell, styles.pos, styles.bold]}>{r.rank}</Text>
                 <Text style={[styles.cell, styles.nameCol]} numberOfLines={2}>{r.name}</Text>
                 <Text style={[styles.cell, styles.gen]}>{r.gender}</Text>
                 <Text style={[styles.cell, styles.totalCol, styles.bold]}>{r.total}/{maxTotal}</Text>
-                <Text style={[styles.cell, styles.resultCol, styles.bold, statusStyle(status)]}>{status}</Text>
+                <Text style={[styles.cell, styles.resultCol, styles.bold, { color: statusColor(status) }]}>
+                  {status}
+                </Text>
               </Pressable>
             );
           })}
@@ -220,7 +246,7 @@ export default function Results() {
               return (
                 <Pressable
                   key={r.studentId}
-                  style={[styles.row, i % 2 === 1 && styles.altRow]}
+                  style={({ pressed }) => [styles.row, i % 2 === 1 && styles.altRow, pressed && styles.pressed]}
                   onPress={() => openStudent(r.studentId)}
                 >
                   <Text style={[styles.cell, styles.pos, styles.bold]}>{r.rank}</Text>
@@ -228,7 +254,7 @@ export default function Results() {
                   {subjects.map((s, j) => {
                     const m = r.marks[j];
                     return (
-                      <Text key={s.id} style={[styles.cell, styles.markCol, m === null && { color: theme.danger }]}>
+                      <Text key={s.id} style={[styles.cell, styles.markCol, m === null && styles.missing]}>
                         {m === null ? '-' : `${m} (${gradeForMark(m, s.max_score)})`}
                       </Text>
                     );
@@ -236,7 +262,9 @@ export default function Results() {
                   <Text style={[styles.cell, styles.fullTotal, styles.bold]}>{r.total}/{maxTotal}</Text>
                   <Text style={[styles.cell, styles.pctCol]}>{r.percentage.toFixed(1)}</Text>
                   <Text style={[styles.cell, styles.gradeCol, styles.bold]}>{r.grade}</Text>
-                  <Text style={[styles.cell, styles.fullResult, styles.bold, statusStyle(status)]}>{status}</Text>
+                  <Text style={[styles.cell, styles.fullResult, styles.bold, { color: statusColor(status) }]}>
+                    {status}
+                  </Text>
                 </Pressable>
               );
             })}
@@ -244,79 +272,14 @@ export default function Results() {
         </ScrollView>
       )}
 
-      <View style={styles.keyCard}>
-        <Text style={styles.keyTitle}>Grade key</Text>
-        {GRADE_SCALE.map((g) => (
-          <Text key={g.value} style={styles.keyLine}>
-            Grade {g.value}  •  {g.label}  •  {g.range}
-          </Text>
-        ))}
-      </View>
+      <GradeKey />
 
-      <Pressable
-        style={styles.newTermBtn}
+      <AppButton
+        variant="secondary"
+        icon="add-circle-outline"
+        title="Start new term"
         onPress={() => router.push({ pathname: '/new-term', params: { classId: String(cid) } })}
-      >
-        <Ionicons name="add-circle-outline" size={22} color={theme.primary} />
-        <Text style={styles.newTermText}>Start new term</Text>
-      </Pressable>
-    </ScrollView>
+      />
+    </Page>
   );
 }
-
-const styles = StyleSheet.create({
-  content: { padding: 14, gap: 12, paddingBottom: 40 },
-  centerMsg: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 30 },
-  msg: { textAlign: 'center', fontSize: 16, color: theme.muted },
-  header: { backgroundColor: '#fff', borderRadius: 18, padding: 16, alignItems: 'center', gap: 2 },
-  title: { fontSize: 26, fontWeight: 'bold', color: theme.text },
-  sub: { color: theme.muted, textAlign: 'center' },
-  chips: { gap: 8 },
-  chip: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: 20, backgroundColor: '#DDEBFA' },
-  chipOn: { backgroundColor: theme.primary },
-  chipText: { fontWeight: 'bold', color: theme.text },
-  chipTextOn: { color: '#fff' },
-  stats: { flexDirection: 'row', gap: 10 },
-  stat: { flex: 1, borderRadius: 14, padding: 12, alignItems: 'center' },
-  statNum: { fontSize: 28, fontWeight: 'bold' },
-  statLabel: { color: theme.text, fontWeight: '600' },
-  pdfBtn: {
-    backgroundColor: theme.purpleDark, borderRadius: 12, padding: 14,
-    flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8,
-  },
-  pdfText: { color: '#fff', fontWeight: 'bold', fontSize: 16 },
-  warn: { backgroundColor: '#FFF4D6', padding: 10, borderRadius: 10 },
-  warnText: { color: '#8A6100', textAlign: 'center' },
-  toggle: { flexDirection: 'row', backgroundColor: '#DDEBFA', borderRadius: 12, padding: 4 },
-  toggleBtn: { flex: 1, paddingVertical: 10, borderRadius: 9, alignItems: 'center' },
-  toggleOn: { backgroundColor: theme.primary },
-  toggleText: { fontWeight: 'bold', color: theme.text },
-  toggleTextOn: { color: '#fff' },
-  hint: { textAlign: 'center', color: theme.muted, fontSize: 13 },
-  table: { backgroundColor: '#fff', borderRadius: 16, overflow: 'hidden' },
-  row: { flexDirection: 'row', alignItems: 'center' },
-  headRow: { backgroundColor: theme.header },
-  altRow: { backgroundColor: '#F2F8FE' },
-  cell: { paddingVertical: 11, paddingHorizontal: 4, textAlign: 'center', color: theme.text },
-  headText: { color: '#fff', fontWeight: 'bold' },
-  pos: { width: 40 },
-  nameCol: { flex: 1, textAlign: 'left' },
-  gen: { width: 34 },
-  totalCol: { width: 82 },
-  resultCol: { width: 82 },
-  fullName: { width: 150, textAlign: 'left' },
-  markCol: { width: 78 },
-  fullTotal: { width: 82 },
-  pctCol: { width: 58 },
-  gradeCol: { width: 56 },
-  fullResult: { width: 90 },
-  bold: { fontWeight: 'bold' },
-  keyCard: { backgroundColor: '#fff', borderRadius: 14, padding: 14, gap: 4 },
-  keyTitle: { fontWeight: 'bold', color: theme.text, marginBottom: 2 },
-  keyLine: { color: theme.text },
-  newTermBtn: {
-    borderWidth: 1.5, borderColor: theme.primary, borderRadius: 12, padding: 14, backgroundColor: '#fff',
-    flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8,
-  },
-  newTermText: { color: theme.primary, fontWeight: 'bold', fontSize: 16 },
-});

@@ -1,8 +1,10 @@
 import { useCallback, useState } from 'react';
-import { View, Text, TextInput, FlatList, StyleSheet } from 'react-native';
+import { FlatList, Text, TextInput, View } from 'react-native';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useLocalSearchParams, useFocusEffect, Stack } from 'expo-router';
-import { theme } from '../theme';
+import Notice from '../components/Notice';
+import styles from '../styles/marks.styles';
+import { colors } from '../theme';
 
 export default function Marks() {
   const db = useSQLiteContext();
@@ -74,6 +76,7 @@ export default function Marks() {
   const progress = students.length ? entered / students.length : 0;
   const title = subject ? `${subject.name} marks` : 'Enter marks';
   const termLabel = term ? [term.name, term.year].filter(Boolean).join(' ') : '';
+  const maxLabel = subject ? subject.max_score : '';
 
   if (students.length === 0) {
     return (
@@ -88,68 +91,52 @@ export default function Marks() {
     <View style={styles.container}>
       <Stack.Screen options={{ title }} />
 
-      <View style={styles.summary}>
-        <Text style={styles.heading}>{subject ? subject.name : ''}</Text>
-        <Text style={styles.sub}>{termLabel}  •  Out of {subject ? subject.max_score : ''}</Text>
-        <View style={styles.barBg}>
-          <View style={[styles.barFill, { width: `${progress * 100}%` }]} />
-        </View>
-        <Text style={styles.sub}>Entered {entered} of {students.length}</Text>
-      </View>
-
       <FlatList
         data={students}
         keyExtractor={(s) => String(s.id)}
         keyboardShouldPersistTaps="handled"
-        contentContainerStyle={{ paddingBottom: 40, gap: 8 }}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.list}
+        ListHeaderComponent={
+          <View style={styles.summary}>
+            <Text style={styles.heading}>{subject ? subject.name : ''}</Text>
+            <Text style={styles.sub}>{termLabel}  |  Out of {maxLabel}</Text>
+            <View style={styles.progressRow}>
+              <Text style={styles.progressLabel}>Marks entered</Text>
+              <Text style={styles.progressValue}>{entered} of {students.length}</Text>
+            </View>
+            <View style={styles.barBg}>
+              <View style={[styles.barFill, { width: `${progress * 100}%` }]} />
+            </View>
+          </View>
+        }
         renderItem={({ item, index }) => (
           <View style={styles.row}>
             <Text style={styles.num}>{index + 1}</Text>
-            <Text style={styles.name} numberOfLines={1}>{item.name}</Text>
+            <Text style={styles.name} numberOfLines={2}>{item.name}</Text>
             <TextInput
               style={[styles.scoreInput, errors[item.id] && styles.scoreErr]}
               keyboardType="decimal-pad"
               placeholder="-"
+              placeholderTextColor={colors.placeholder}
               value={values[item.id] || ''}
               onChangeText={(t) => setValues((v) => ({ ...v, [item.id]: t }))}
               onEndEditing={() => saveScore(item.id)}
               onBlur={() => saveScore(item.id)}
               selectTextOnFocus
             />
-            <Text style={styles.max}>/ {subject ? subject.max_score : ''}</Text>
+            <Text style={styles.max}>/ {maxLabel}</Text>
           </View>
         )}
       />
 
       {Object.values(errors).some(Boolean) && (
-        <Text style={styles.errText}>
-          Red boxes are not saved. Marks must be a number from 0 to {subject ? subject.max_score : ''}.
-        </Text>
+        <View style={styles.errWrap}>
+          <Notice tone="danger">
+            Boxes marked in red are not saved. Marks must be a number from 0 to {maxLabel}.
+          </Notice>
+        </View>
       )}
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, padding: 14, gap: 10 },
-  centerMsg: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 30 },
-  msg: { textAlign: 'center', fontSize: 16, color: theme.muted },
-  summary: { backgroundColor: '#fff', borderRadius: 18, padding: 16, gap: 6, alignItems: 'center' },
-  heading: { fontSize: 24, fontWeight: 'bold', color: theme.text },
-  sub: { color: theme.muted },
-  barBg: { width: '100%', height: 10, borderRadius: 5, backgroundColor: '#DDEBFA', overflow: 'hidden', marginTop: 4 },
-  barFill: { height: 10, backgroundColor: theme.greenDark },
-  row: {
-    backgroundColor: '#fff', borderRadius: 14, paddingVertical: 8, paddingHorizontal: 12,
-    flexDirection: 'row', alignItems: 'center', gap: 10,
-  },
-  num: { width: 26, color: theme.muted, textAlign: 'right' },
-  name: { flex: 1, fontSize: 16, color: theme.text },
-  scoreInput: {
-    width: 72, borderWidth: 1, borderColor: theme.border, borderRadius: 10,
-    padding: 9, textAlign: 'center', backgroundColor: '#F7FAFE', fontSize: 16,
-  },
-  scoreErr: { borderColor: theme.danger, backgroundColor: '#FDECEA' },
-  max: { width: 50, color: theme.muted },
-  errText: { color: theme.danger, textAlign: 'center' },
-});

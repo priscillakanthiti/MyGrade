@@ -1,14 +1,15 @@
 import { useState } from 'react';
-import {
-  View, Text, TextInput, Pressable, ScrollView, StyleSheet,
-  KeyboardAvoidingView, Platform,
-} from 'react-native';
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../auth/AuthContext';
 import SchoolLogo from '../components/SchoolLogo';
 import QuestionPicker from '../components/QuestionPicker';
-import { theme } from '../theme';
+import AppButton from '../components/AppButton';
+import AppInput from '../components/AppInput';
+import Notice from '../components/Notice';
+import styles from '../styles/auth.styles';
+import { colors } from '../theme';
 
 export default function Login() {
   const router = useRouter();
@@ -23,10 +24,12 @@ export default function Login() {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
+  const isLogin = mode === 'login';
+
   async function submit() {
     setError('');
     setBusy(true);
-    const err = mode === 'login'
+    const err = isLogin
       ? await login(username, pin)
       : await register(name, username, pin, question, answer);
     setBusy(false);
@@ -34,142 +37,112 @@ export default function Login() {
   }
 
   function switchMode() {
-    setMode(mode === 'login' ? 'register' : 'login');
+    setMode(isLogin ? 'register' : 'login');
     setError('');
   }
 
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <ScrollView contentContainerStyle={styles.screen} keyboardShouldPersistTaps="handled">
-        <View style={styles.box}>
-          <View style={{ alignItems: 'center' }}>
-            <SchoolLogo size={110} />
-            <Text style={styles.school}>Catholic Institute</Text>
-            <Text style={styles.school}>Primary School</Text>
+      <ScrollView contentContainerStyle={styles.authScreen} keyboardShouldPersistTaps="handled">
+        <View style={styles.authBox}>
+          <View style={styles.brand}>
+            <SchoolLogo size={88} />
+            <Text style={styles.brandName}>Catholic Institute Primary School</Text>
           </View>
 
-          <Text style={styles.title}>{mode === 'login' ? 'Welcome Back' : 'Create Account'}</Text>
-          <Text style={styles.sub}>
-            {mode === 'login' ? 'Sign in to continue' : 'Register as a teacher'}
-          </Text>
+          <View style={styles.authCard}>
+            <Text style={styles.authTitle}>{isLogin ? 'Welcome back' : 'Create account'}</Text>
+            <Text style={styles.authSub}>
+              {isLogin ? 'Sign in to continue to your classes' : 'Register as a teacher'}
+            </Text>
 
-          {mode === 'register' && (
-            <View style={styles.field}>
-              <Ionicons name="happy-outline" size={22} color={theme.muted} />
-              <TextInput
-                style={styles.input}
-                placeholder="Full name (e.g. Madam Soso)"
+            {!isLogin && (
+              <AppInput
+                label="Full name"
+                icon="person-outline"
+                placeholder="e.g. Madam Soso"
                 value={name}
                 onChangeText={setName}
               />
-            </View>
-          )}
+            )}
 
-          <View style={styles.field}>
-            <Ionicons name="person-outline" size={22} color={theme.muted} />
-            <TextInput
-              style={styles.input}
-              placeholder="Username"
+            <AppInput
+              label="Username"
+              icon="at-outline"
+              placeholder="Enter your username"
               autoCapitalize="none"
               autoCorrect={false}
               value={username}
               onChangeText={setUsername}
             />
-          </View>
 
-          <View style={styles.field}>
-            <Ionicons name="lock-closed-outline" size={22} color={theme.muted} />
-            <TextInput
-              style={styles.input}
-              placeholder={mode === 'login' ? 'PIN' : 'PIN (4 to 6 digits)'}
+            <AppInput
+              label="PIN"
+              icon="lock-closed-outline"
+              placeholder={isLogin ? 'Enter your PIN' : '4 to 6 digits'}
               keyboardType="number-pad"
               maxLength={6}
               secureTextEntry={!showPin}
               value={pin}
               onChangeText={setPin}
+              right={
+                <Pressable onPress={() => setShowPin(!showPin)} hitSlop={10}>
+                  <Ionicons
+                    name={showPin ? 'eye-off-outline' : 'eye-outline'}
+                    size={20}
+                    color={colors.muted}
+                  />
+                </Pressable>
+              }
             />
-            <Pressable onPress={() => setShowPin(!showPin)} hitSlop={10}>
-              <Ionicons name={showPin ? 'eye-off-outline' : 'eye-outline'} size={22} color={theme.muted} />
-            </Pressable>
-          </View>
 
-          {mode === 'register' && (
-            <>
-              <Text style={styles.hint}>
-                Recovery question: used to reset your PIN if you forget it.
-              </Text>
-              <QuestionPicker value={question} onChange={setQuestion} />
-              <View style={styles.field}>
-                <Ionicons name="key-outline" size={22} color={theme.muted} />
-                <TextInput
-                  style={styles.input}
+            {!isLogin && (
+              <>
+                <Text style={styles.hint}>
+                  Recovery question: used to reset your PIN if you forget it.
+                </Text>
+                <QuestionPicker value={question} onChange={setQuestion} />
+                <AppInput
+                  icon="key-outline"
                   placeholder="Your answer"
                   autoCapitalize="none"
                   value={answer}
                   onChangeText={setAnswer}
                 />
-              </View>
-            </>
-          )}
+              </>
+            )}
 
-          {error ? <Text style={styles.error}>{error}</Text> : null}
+            {error ? <Notice tone="danger">{error}</Notice> : null}
 
-          <Pressable style={[styles.primaryBtn, busy && { opacity: 0.6 }]} onPress={submit} disabled={busy}>
-            <Text style={styles.primaryText}>{mode === 'login' ? 'Sign In' : 'Create Account'}</Text>
-          </Pressable>
+            <AppButton
+              title={isLogin ? 'Sign In' : 'Create Account'}
+              onPress={submit}
+              loading={busy}
+            />
 
-          <View style={styles.orRow}>
-            <View style={styles.line} />
-            <Text style={styles.orText}>OR</Text>
-            <View style={styles.line} />
+            <View style={styles.orRow}>
+              <View style={styles.orLine} />
+              <Text style={styles.orText}>OR</Text>
+              <View style={styles.orLine} />
+            </View>
+
+            <AppButton
+              variant="secondary"
+              icon={isLogin ? 'person-add-outline' : 'log-in-outline'}
+              title={isLogin ? 'Sign Up' : 'Back to Sign In'}
+              onPress={switchMode}
+            />
+
+            {isLogin && (
+              <Pressable onPress={() => router.push('/forgot-pin')}>
+                <Text style={styles.link}>Forgot PIN?</Text>
+              </Pressable>
+            )}
           </View>
 
-          <Pressable style={styles.outlineBtn} onPress={switchMode}>
-            <Ionicons
-              name={mode === 'login' ? 'person-add-outline' : 'log-in-outline'}
-              size={20}
-              color={theme.primary}
-            />
-            <Text style={styles.outlineText}>{mode === 'login' ? 'Sign Up' : 'Back to Sign In'}</Text>
-          </Pressable>
-
-          {mode === 'login' && (
-            <Pressable onPress={() => router.push('/forgot-pin')}>
-              <Text style={styles.link}>Forgot PIN?</Text>
-            </Pressable>
-          )}
-
-          <Text style={styles.footer}>Better Data. Better Decisions. Better Learning.</Text>
+          <Text style={styles.authFooter}>Better Data. Better Decisions. Better Learning.</Text>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
   );
 }
-
-const styles = StyleSheet.create({
-  screen: { flexGrow: 1, justifyContent: 'center', alignItems: 'center', padding: 24, backgroundColor: theme.bg },
-  box: { width: '100%', maxWidth: 400, gap: 12 },
-  school: { fontSize: 20, fontWeight: 'bold', color: theme.text, textAlign: 'center' },
-  title: { fontSize: 30, fontWeight: 'bold', color: theme.text, textAlign: 'center', marginTop: 14 },
-  sub: { textAlign: 'center', color: theme.muted, marginBottom: 6, fontSize: 16 },
-  hint: { color: theme.muted, fontSize: 13 },
-  field: {
-    flexDirection: 'row', alignItems: 'center', gap: 10,
-    backgroundColor: '#fff', borderWidth: 1, borderColor: theme.border,
-    borderRadius: 12, paddingHorizontal: 14,
-  },
-  input: { flex: 1, paddingVertical: 14, fontSize: 16 },
-  error: { color: theme.danger, textAlign: 'center' },
-  primaryBtn: { backgroundColor: theme.primary, padding: 15, borderRadius: 12, alignItems: 'center' },
-  primaryText: { color: '#fff', fontWeight: 'bold', fontSize: 17 },
-  orRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  line: { flex: 1, height: 1, backgroundColor: theme.border },
-  orText: { color: theme.muted },
-  outlineBtn: {
-    flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8,
-    borderWidth: 1.5, borderColor: theme.primary, borderRadius: 12, padding: 14, backgroundColor: '#fff',
-  },
-  outlineText: { color: theme.primary, fontWeight: 'bold', fontSize: 17 },
-  link: { textAlign: 'center', color: theme.primary, marginTop: 4 },
-  footer: { textAlign: 'center', color: theme.muted, fontStyle: 'italic', marginTop: 16, fontSize: 12 },
-});

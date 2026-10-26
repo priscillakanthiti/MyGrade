@@ -1,0 +1,72 @@
+import { StyleSheet } from 'react-native';
+import { colors, spacing, radius, font, shadow } from '../theme';
+
+// Styles for: (tabs)/profile.js
+export default StyleSheet.create({
+  card: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.xl,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.xl,
+    alignItems: 'center',
+    gap: 4,
+    ...shadow.card,
+  },
+  avatar: {
+    width: 84,
+    height: 84,
+    borderRadius: 42,
+    backgroundColor: colors.primaryDark,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.sm,
+  },
+  avatarText: { color: colors.white, fontSize: 36, fontWeight: font.weight.bold },
+  name: {
+    fontSize: font.size.xl,
+    lineHeight: font.lineHeight.xl,
+    fontWeight: font.weight.bold,
+    color: colors.text,
+    textAlign: 'center',
+  },
+  role: {
+    fontSize: font.size.xs,
+    color: colors.primary,
+    fontWeight: font.weight.bold,
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+  },
+  divider: { height: 1, backgroundColor: colors.border, alignSelf: 'stretch', marginVertical: spacing.lg },
+  schoolRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, alignSelf: 'stretch' },
+  schoolName: {
+    flex: 1,
+    fontSize: font.size.md,
+    lineHeight: font.lineHeight.md,
+    fontWeight: font.weight.semibold,
+    color: colors.text,
+  },
+  menuRow: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.lg,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.lg,
+    ...shadow.card,
+  },
+  menuIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: radius.md,
+    backgroundColor: colors.primarySoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  menuTexts: { flex: 1, gap: 2 },
+  menuTitle: { fontSize: font.size.md, fontWeight: font.weight.bold, color: colors.text },
+  menuSub: { fontSize: font.size.sm, color: colors.muted },
+  pressed: { opacity: 0.85 },
+});

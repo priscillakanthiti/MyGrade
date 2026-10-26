@@ -1,0 +1,81 @@
+import { StyleSheet } from 'react-native';
+import { colors, spacing, radius, font, shadow } from '../theme';
+
+// Styles for: marks.js
+export default StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
+  list: { padding: spacing.lg, paddingBottom: 48, gap: spacing.sm },
+  centerMsg: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: spacing.xl,
+    backgroundColor: colors.background,
+  },
+  msg: { textAlign: 'center', fontSize: font.size.md, lineHeight: font.lineHeight.md, color: colors.muted },
+
+  summary: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.xl,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.xl,
+    gap: spacing.sm,
+    marginBottom: spacing.sm,
+    ...shadow.card,
+  },
+  heading: {
+    fontSize: font.size.xxl,
+    lineHeight: font.lineHeight.xxl,
+    fontWeight: font.weight.bold,
+    color: colors.text,
+  },
+  sub: { fontSize: font.size.sm, lineHeight: font.lineHeight.sm, color: colors.muted },
+  progressRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: spacing.xs },
+  progressLabel: { fontSize: font.size.sm, color: colors.textSecondary, fontWeight: font.weight.semibold },
+  progressValue: { fontSize: font.size.sm, color: colors.primary, fontWeight: font.weight.bold },
+  barBg: {
+    width: '100%',
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: colors.primarySoft,
+    overflow: 'hidden',
+  },
+  barFill: { height: 8, borderRadius: 4, backgroundColor: colors.success },
+
+  row: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+  },
+  num: {
+    width: 26,
+    fontSize: font.size.sm,
+    color: colors.muted,
+    textAlign: 'center',
+    fontWeight: font.weight.semibold,
+  },
+  name: { flex: 1, fontSize: font.size.md, lineHeight: font.lineHeight.md, color: colors.text },
+  scoreInput: {
+    width: 76,
+    minHeight: 44,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+    borderRadius: radius.sm,
+    paddingHorizontal: spacing.sm,
+    textAlign: 'center',
+    backgroundColor: colors.surfaceAlt,
+    fontSize: font.size.lg,
+    fontWeight: font.weight.semibold,
+    color: colors.text,
+  },
+  scoreErr: { borderColor: colors.danger, backgroundColor: colors.dangerSoft },
+  max: { width: 44, fontSize: font.size.sm, color: colors.muted },
+  errWrap: { paddingHorizontal: spacing.lg, paddingBottom: spacing.lg },
+});

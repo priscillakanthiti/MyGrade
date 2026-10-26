@@ -1,10 +1,14 @@
 import { useCallback, useState } from 'react';
-import { View, Text, TextInput, Pressable, ScrollView, StyleSheet, Alert } from 'react-native';
+import { Alert, Text, View } from 'react-native';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useFocusEffect } from 'expo-router';
 import { useAuth } from '../auth/AuthContext';
 import QuestionPicker from '../components/QuestionPicker';
-import { theme } from '../theme';
+import Page from '../components/Page';
+import AppButton from '../components/AppButton';
+import AppInput from '../components/AppInput';
+import Notice from '../components/Notice';
+import styles from '../styles/forms.styles';
 
 export default function AccountSecurity() {
   const db = useSQLiteContext();
@@ -57,92 +61,77 @@ export default function AccountSecurity() {
   }
 
   return (
-    <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+    <Page>
       <View style={styles.card}>
-        <Text style={styles.title}>Change PIN</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Current PIN"
+        <View>
+          <Text style={styles.cardTitle}>Change PIN</Text>
+          <Text style={styles.cardSub}>Use 4 to 6 digits that are easy for you to remember.</Text>
+        </View>
+        <AppInput
+          label="Current PIN"
+          icon="lock-closed-outline"
+          placeholder="Enter current PIN"
           keyboardType="number-pad"
           maxLength={6}
           secureTextEntry
           value={currentPin}
           onChangeText={setCurrentPin}
         />
-        <TextInput
-          style={styles.input}
-          placeholder="New PIN (4 to 6 digits)"
+        <AppInput
+          label="New PIN"
+          icon="key-outline"
+          placeholder="4 to 6 digits"
           keyboardType="number-pad"
           maxLength={6}
           secureTextEntry
           value={newPin}
           onChangeText={setNewPin}
         />
-        <TextInput
-          style={styles.input}
-          placeholder="Confirm new PIN"
+        <AppInput
+          label="Confirm new PIN"
+          icon="key-outline"
+          placeholder="Repeat the new PIN"
           keyboardType="number-pad"
           maxLength={6}
           secureTextEntry
           value={newPin2}
           onChangeText={setNewPin2}
         />
-        {pinError ? <Text style={styles.error}>{pinError}</Text> : null}
-        <Pressable style={styles.btn} onPress={submitPin}>
-          <Text style={styles.btnText}>Change PIN</Text>
-        </Pressable>
+        {pinError ? <Notice tone="danger">{pinError}</Notice> : null}
+        <AppButton title="Change PIN" onPress={submitPin} />
       </View>
 
       <View style={styles.card}>
-        <Text style={styles.title}>Recovery question</Text>
-        <View style={[styles.status, hasQuestion ? styles.statusOk : styles.statusWarn]}>
-          <Text style={{ color: hasQuestion ? theme.greenDark : '#8A6100', fontWeight: 'bold', textAlign: 'center' }}>
-            {hasQuestion
-              ? 'A recovery question is set. You can change it below.'
-              : 'No recovery question yet. Set one now, or you will not be able to reset a forgotten PIN.'}
-          </Text>
-        </View>
+        <Text style={styles.cardTitle}>Recovery question</Text>
+        {hasQuestion ? (
+          <Notice tone="success">A recovery question is set. You can change it below.</Notice>
+        ) : (
+          <Notice tone="warning">
+            No recovery question yet. Set one now, or you will not be able to reset a forgotten PIN.
+          </Notice>
+        )}
         <QuestionPicker value={question} onChange={setQuestion} />
-        <TextInput
-          style={styles.input}
-          placeholder="Your answer"
+        <AppInput
+          label="Your answer"
+          icon="chatbubble-ellipses-outline"
+          placeholder="Type your answer"
           autoCapitalize="none"
           value={answer}
           onChangeText={setAnswer}
         />
-        <TextInput
-          style={styles.input}
-          placeholder="Current PIN (to confirm it is you)"
+        <AppInput
+          label="Current PIN"
+          icon="lock-closed-outline"
+          placeholder="Confirm it is you"
           keyboardType="number-pad"
           maxLength={6}
           secureTextEntry
           value={qPin}
           onChangeText={setQPin}
         />
-        {qError ? <Text style={styles.error}>{qError}</Text> : null}
-        <Pressable style={styles.btn} onPress={submitQuestion}>
-          <Text style={styles.btnText}>Save recovery question</Text>
-        </Pressable>
+        {qError ? <Notice tone="danger">{qError}</Notice> : null}
+        <AppButton title="Save recovery question" onPress={submitQuestion} />
       </View>
-    </ScrollView>
+    </Page>
   );
 }
-
-const styles = StyleSheet.create({
-  content: { padding: 16, gap: 14, paddingBottom: 40 },
-  card: {
-    backgroundColor: '#fff', borderRadius: 18, padding: 16, gap: 10,
-    width: '100%', maxWidth: 480, alignSelf: 'center',
-  },
-  title: { fontSize: 18, fontWeight: 'bold', color: theme.text },
-  input: {
-    borderWidth: 1, borderColor: theme.border, borderRadius: 10,
-    padding: 12, fontSize: 16, backgroundColor: '#F7FAFE',
-  },
-  error: { color: theme.danger, textAlign: 'center' },
-  btn: { backgroundColor: theme.primary, padding: 14, borderRadius: 12, alignItems: 'center' },
-  btnText: { color: '#fff', fontWeight: 'bold', fontSize: 16 },
-  status: { borderRadius: 10, padding: 10 },
-  statusOk: { backgroundColor: theme.green },
-  statusWarn: { backgroundColor: '#FFF4D6' },
-});

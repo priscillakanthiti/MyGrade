@@ -1,12 +1,17 @@
-import { Ionicons } from "@expo/vector-icons";
-import { useFocusEffect, useRouter } from "expo-router";
-import { useSQLiteContext } from "expo-sqlite";
-import { useCallback, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { useAuth } from "../../auth/AuthContext";
-import BlueHeader from "../../components/BlueHeader";
-import { badgeColors, theme } from "../../theme";
-import { badgeText } from "../../utils/format";
+import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { useSQLiteContext } from 'expo-sqlite';
+import { useCallback, useState } from 'react';
+import { Pressable, Text, View } from 'react-native';
+import { useAuth } from '../../auth/AuthContext';
+import BlueHeader from '../../components/BlueHeader';
+import Page from '../../components/Page';
+import SectionTitle from '../../components/SectionTitle';
+import EmptyState from '../../components/EmptyState';
+import { common } from '../../styles/components.styles';
+import styles from '../../styles/classes.styles';
+import { badgeColors, colors } from '../../theme';
+import { badgeText } from '../../utils/format';
 
 export default function ResultsTab() {
   const db = useSQLiteContext();
@@ -17,7 +22,7 @@ export default function ResultsTab() {
   const load = useCallback(async () => {
     setClasses(
       await db.getAllAsync(
-        "SELECT * FROM classes WHERE teacher_id = ? ORDER BY id DESC",
+        'SELECT * FROM classes WHERE teacher_id = ? ORDER BY id DESC',
         teacherId,
       ),
     );
@@ -30,65 +35,42 @@ export default function ResultsTab() {
   );
 
   return (
-    <View style={{ flex: 1, backgroundColor: theme.bg }}>
-      <BlueHeader title="Results" />
-      <ScrollView contentContainerStyle={styles.content}>
-        <Text style={styles.section}>Choose a class to view its results</Text>
+    <View style={common.screen}>
+      <BlueHeader title="Results" subtitle="Rankings, grades and reports" />
+      <Page>
+        <SectionTitle title="Choose a class" meta="Open its results" />
+
         {classes.length === 0 && (
-          <Text style={styles.muted}>No classes yet.</Text>
+          <EmptyState icon="stats-chart-outline" title="No classes yet">
+            Register a class and enter marks to see results here.
+          </EmptyState>
         )}
+
         {classes.map((c, i) => {
           const color = badgeColors[i % badgeColors.length];
           return (
             <Pressable
               key={c.id}
-              style={styles.card}
+              style={({ pressed }) => [styles.card, pressed && styles.pressed]}
               onPress={() =>
                 router.push({
-                  pathname: "/results",
+                  pathname: '/results',
                   params: { classId: String(c.id) },
                 })
               }
             >
               <View style={[styles.badge, { backgroundColor: color.bg }]}>
-                <Text style={[styles.badgeText, { color: color.fg }]}>
-                  {badgeText(c.name)}
-                </Text>
+                <Text style={[styles.badgeText, { color: color.fg }]}>{badgeText(c.name)}</Text>
               </View>
-              <View style={{ flex: 1 }}>
+              <View style={styles.cardBody}>
                 <Text style={styles.cardTitle}>{c.name}</Text>
-                <Text style={styles.muted}>
-                  {[c.term, c.year].filter(Boolean).join("  •  ")}
-                </Text>
+                <Text style={styles.cardMeta}>{[c.term, c.year].filter(Boolean).join('  |  ')}</Text>
               </View>
-              <Ionicons name="chevron-forward" size={22} color={theme.muted} />
+              <Ionicons name="chevron-forward" size={20} color={colors.muted} />
             </Pressable>
           );
         })}
-      </ScrollView>
+      </Page>
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  content: { padding: 16, gap: 12, paddingBottom: 30 },
-  section: { fontSize: 18, fontWeight: "bold", color: theme.text },
-  muted: { color: theme.muted },
-  card: {
-    backgroundColor: "#fff",
-    borderRadius: 16,
-    padding: 14,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-  },
-  badge: {
-    width: 58,
-    height: 58,
-    borderRadius: 14,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  badgeText: { fontSize: 18, fontWeight: "bold" },
-  cardTitle: { fontSize: 18, fontWeight: "bold", color: theme.text },
-});

@@ -1,9 +1,11 @@
 import { useState } from 'react';
-import { View, Text, TextInput, Pressable, ScrollView, StyleSheet, Alert } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Alert, ScrollView, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../auth/AuthContext';
-import { theme } from '../theme';
+import AppButton from '../components/AppButton';
+import AppInput from '../components/AppInput';
+import Notice from '../components/Notice';
+import styles from '../styles/auth.styles';
 
 export default function ForgotPin() {
   const router = useRouter();
@@ -55,97 +57,67 @@ export default function ForgotPin() {
   }
 
   return (
-    <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-      <View style={styles.box}>
-        <Text style={styles.title}>Reset your PIN</Text>
+    <ScrollView contentContainerStyle={styles.authScreen} keyboardShouldPersistTaps="handled">
+      <View style={styles.authBox}>
+        <View style={styles.authCard}>
+          <Text style={styles.authTitle}>Reset your PIN</Text>
 
-        {step === 1 ? (
-          <>
-            <Text style={styles.sub}>Enter your username to find your recovery question.</Text>
-            <View style={styles.field}>
-              <Ionicons name="person-outline" size={22} color={theme.muted} />
-              <TextInput
-                style={styles.input}
-                placeholder="Username"
+          {step === 1 ? (
+            <>
+              <Text style={styles.authSub}>Enter your username to find your recovery question.</Text>
+              <AppInput
+                label="Username"
+                icon="at-outline"
+                placeholder="Enter your username"
                 autoCapitalize="none"
                 autoCorrect={false}
                 value={username}
                 onChangeText={setUsername}
               />
-            </View>
-            {error ? <Text style={styles.error}>{error}</Text> : null}
-            <Pressable style={[styles.btn, busy && { opacity: 0.6 }]} onPress={findAccount} disabled={busy}>
-              <Text style={styles.btnText}>Continue</Text>
-            </Pressable>
-          </>
-        ) : (
-          <>
-            <Text style={styles.sub}>Answer your recovery question, then choose a new PIN.</Text>
-            <View style={styles.questionBox}>
-              <Text style={styles.questionText}>{question}</Text>
-            </View>
-            <View style={styles.field}>
-              <Ionicons name="key-outline" size={22} color={theme.muted} />
-              <TextInput
-                style={styles.input}
-                placeholder="Your answer"
+              {error ? <Notice tone="danger">{error}</Notice> : null}
+              <AppButton title="Continue" onPress={findAccount} loading={busy} />
+            </>
+          ) : (
+            <>
+              <Text style={styles.authSub}>Answer your recovery question, then choose a new PIN.</Text>
+              <View style={styles.questionBox}>
+                <Text style={styles.questionLabel}>Recovery question</Text>
+                <Text style={styles.questionText}>{question}</Text>
+              </View>
+              <AppInput
+                label="Your answer"
+                icon="key-outline"
+                placeholder="Type your answer"
                 autoCapitalize="none"
                 value={answer}
                 onChangeText={setAnswer}
               />
-            </View>
-            <View style={styles.field}>
-              <Ionicons name="lock-closed-outline" size={22} color={theme.muted} />
-              <TextInput
-                style={styles.input}
-                placeholder="New PIN (4 to 6 digits)"
+              <AppInput
+                label="New PIN"
+                icon="lock-closed-outline"
+                placeholder="4 to 6 digits"
                 keyboardType="number-pad"
                 maxLength={6}
                 secureTextEntry
                 value={pin}
                 onChangeText={setPin}
               />
-            </View>
-            <View style={styles.field}>
-              <Ionicons name="lock-closed-outline" size={22} color={theme.muted} />
-              <TextInput
-                style={styles.input}
-                placeholder="Confirm new PIN"
+              <AppInput
+                label="Confirm new PIN"
+                icon="lock-closed-outline"
+                placeholder="Repeat the new PIN"
                 keyboardType="number-pad"
                 maxLength={6}
                 secureTextEntry
                 value={pin2}
                 onChangeText={setPin2}
               />
-            </View>
-            {error ? <Text style={styles.error}>{error}</Text> : null}
-            <Pressable style={[styles.btn, busy && { opacity: 0.6 }]} onPress={submitReset} disabled={busy}>
-              <Text style={styles.btnText}>Change PIN</Text>
-            </Pressable>
-          </>
-        )}
+              {error ? <Notice tone="danger">{error}</Notice> : null}
+              <AppButton title="Change PIN" onPress={submitReset} loading={busy} />
+            </>
+          )}
+        </View>
       </View>
     </ScrollView>
   );
 }
-
-const styles = StyleSheet.create({
-  content: { padding: 16 },
-  box: {
-    backgroundColor: '#fff', borderRadius: 18, padding: 18, gap: 12,
-    width: '100%', maxWidth: 440, alignSelf: 'center',
-  },
-  title: { fontSize: 24, fontWeight: 'bold', color: theme.text, textAlign: 'center' },
-  sub: { color: theme.muted, textAlign: 'center' },
-  field: {
-    flexDirection: 'row', alignItems: 'center', gap: 10,
-    backgroundColor: '#F7FAFE', borderWidth: 1, borderColor: theme.border,
-    borderRadius: 12, paddingHorizontal: 14,
-  },
-  input: { flex: 1, paddingVertical: 14, fontSize: 16 },
-  questionBox: { backgroundColor: '#DDEBFA', borderRadius: 12, padding: 14 },
-  questionText: { color: theme.text, fontWeight: 'bold', fontSize: 16 },
-  error: { color: theme.danger, textAlign: 'center' },
-  btn: { backgroundColor: theme.primary, padding: 15, borderRadius: 12, alignItems: 'center' },
-  btnText: { color: '#fff', fontWeight: 'bold', fontSize: 17 },
-});

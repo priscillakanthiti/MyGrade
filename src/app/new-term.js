@@ -1,8 +1,12 @@
 import { useEffect, useState } from 'react';
-import { View, Text, TextInput, Pressable, ScrollView, StyleSheet, Alert } from 'react-native';
+import { Alert, Text, View } from 'react-native';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { theme } from '../theme';
+import Page from '../components/Page';
+import AppButton from '../components/AppButton';
+import AppInput from '../components/AppInput';
+import Notice from '../components/Notice';
+import styles from '../styles/forms.styles';
 
 export default function NewTerm() {
   const db = useSQLiteContext();
@@ -59,55 +63,37 @@ export default function NewTerm() {
   }
 
   return (
-    <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-      <View style={styles.box}>
-        <Text style={styles.title}>{cls ? cls.name : ''}</Text>
-        <Text style={styles.sub}>
+    <Page>
+      <View style={styles.heading}>
+        <Text style={styles.headingTitle}>{cls ? cls.name : ''}</Text>
+        <Text style={styles.headingSub}>
           Current term: {current ? [current.name, current.year].filter(Boolean).join(' ') : '-'}
         </Text>
+      </View>
 
-        <View style={styles.note}>
-          <Text style={styles.noteText}>
-            Starting a new term keeps all the marks and results of the current term. Students and subjects stay
-            the same, and the new term starts with no marks.
-          </Text>
-        </View>
+      <Notice tone="info" title="Your results are kept">
+        Starting a new term keeps all marks and results of the current term. Students and subjects stay
+        the same, and the new term starts with no marks.
+      </Notice>
 
-        <Text style={styles.label}>New term name</Text>
-        <TextInput style={styles.input} placeholder="e.g. Term 2" value={name} onChangeText={setName} />
-
-        <Text style={styles.label}>Year</Text>
-        <TextInput
-          style={styles.input}
+      <View style={styles.card}>
+        <AppInput
+          label="New term name"
+          icon="calendar-outline"
+          placeholder="e.g. Term 2"
+          value={name}
+          onChangeText={setName}
+        />
+        <AppInput
+          label="Year"
+          icon="time-outline"
           placeholder="e.g. 2026"
           value={year}
           onChangeText={setYear}
           keyboardType="numeric"
         />
-
-        <Pressable style={styles.button} onPress={confirm}>
-          <Text style={styles.buttonText}>Start new term</Text>
-        </Pressable>
+        <AppButton title="Start new term" icon="arrow-forward" iconRight onPress={confirm} />
       </View>
-    </ScrollView>
+    </Page>
   );
 }
-
-const styles = StyleSheet.create({
-  content: { padding: 16 },
-  box: {
-    backgroundColor: '#fff', borderRadius: 18, padding: 18, gap: 8,
-    width: '100%', maxWidth: 480, alignSelf: 'center',
-  },
-  title: { fontSize: 24, fontWeight: 'bold', color: theme.text, textAlign: 'center' },
-  sub: { color: theme.muted, textAlign: 'center' },
-  note: { backgroundColor: '#DDEBFA', borderRadius: 12, padding: 12, marginVertical: 6 },
-  noteText: { color: theme.text, textAlign: 'center' },
-  label: { fontWeight: 'bold', color: theme.text, marginTop: 4 },
-  input: {
-    borderWidth: 1, borderColor: theme.border, borderRadius: 10,
-    padding: 12, fontSize: 16, backgroundColor: '#F7FAFE',
-  },
-  button: { backgroundColor: theme.primary, padding: 15, borderRadius: 12, alignItems: 'center', marginTop: 12 },
-  buttonText: { color: '#fff', fontWeight: 'bold', fontSize: 17 },
-});

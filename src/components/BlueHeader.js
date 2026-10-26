@@ -1,32 +1,25 @@
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { theme } from '../theme';
+import styles from '../styles/components.styles';
+import { colors, spacing } from '../theme';
 
-export default function BlueHeader({ title, right }) {
+export default function BlueHeader({ title, subtitle, right }) {
   const insets = useSafeAreaInsets();
+
   return (
-    <View style={[styles.bar, { paddingTop: insets.top + 14 }]}>
-      <Text style={styles.title}>{title}</Text>
-      {right ? (
-        <Pressable onPress={right.onPress} hitSlop={12}>
-          <Ionicons name={right.icon} size={28} color="#fff" />
-        </Pressable>
-      ) : (
-        <View style={{ width: 28 }} />
-      )}
+    <View style={[styles.headerBar, { paddingTop: insets.top + spacing.lg }]}>
+      <View style={styles.headerInner}>
+        <View style={styles.headerTexts}>
+          <Text style={styles.headerTitle}>{title}</Text>
+          {subtitle ? <Text style={styles.headerSubtitle}>{subtitle}</Text> : null}
+        </View>
+        {right ? (
+          <Pressable onPress={right.onPress} hitSlop={10} style={styles.headerAction}>
+            <Ionicons name={right.icon} size={22} color={colors.white} />
+          </Pressable>
+        ) : null}
+      </View>
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  bar: {
-    backgroundColor: theme.header,
-    paddingHorizontal: 18,
-    paddingBottom: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  title: { color: '#fff', fontSize: 22, fontWeight: 'bold' },
-});

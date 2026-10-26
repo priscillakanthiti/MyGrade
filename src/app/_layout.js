@@ -3,7 +3,7 @@ import { SQLiteProvider } from 'expo-sqlite';
 import { migrateDb } from '../db/database';
 import { AuthProvider, useAuth } from '../auth/AuthContext';
 import { ClassProvider } from '../state/ClassContext';
-import { theme } from '../theme';
+import { colors, font } from '../theme';
 
 function RootNav() {
   const { teacherId, loading } = useAuth();
@@ -12,10 +12,12 @@ function RootNav() {
   return (
     <Stack
       screenOptions={{
-        headerStyle: { backgroundColor: theme.header },
-        headerTintColor: '#fff',
-        headerTitleStyle: { fontWeight: 'bold' },
-        contentStyle: { backgroundColor: theme.bg },
+        headerStyle: { backgroundColor: colors.primaryDark },
+        headerTintColor: colors.white,
+        headerTitleAlign: 'center',
+        headerShadowVisible: false,
+        headerTitleStyle: { fontWeight: font.weight.bold, fontSize: font.size.lg },
+        contentStyle: { backgroundColor: colors.background },
       }}
     >
       <Stack.Protected guard={!!teacherId}>
@@ -23,7 +25,7 @@ function RootNav() {
         <Stack.Screen name="register-class" options={{ title: 'Register Class' }} />
         <Stack.Screen name="subjects" options={{ title: 'Subjects' }} />
         <Stack.Screen name="students" options={{ title: 'Students' }} />
-        <Stack.Screen name="marks" options={{ title: 'Enter marks' }} />
+        <Stack.Screen name="marks" options={{ title: 'Enter Marks' }} />
         <Stack.Screen name="results" options={{ title: 'Results' }} />
         <Stack.Screen name="student-report" options={{ title: 'Student Report' }} />
         <Stack.Screen name="new-term" options={{ title: 'Start New Term' }} />

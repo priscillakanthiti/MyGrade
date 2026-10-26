@@ -1,13 +1,19 @@
-import { Ionicons } from "@expo/vector-icons";
-import { useFocusEffect, useRouter } from "expo-router";
-import { useSQLiteContext } from "expo-sqlite";
-import { useCallback, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { useAuth } from "../../auth/AuthContext";
-import BlueHeader from "../../components/BlueHeader";
-import { useSelectedClass } from "../../state/ClassContext";
-import { badgeColors, theme } from "../../theme";
-import { badgeText } from "../../utils/format";
+import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { useSQLiteContext } from 'expo-sqlite';
+import { useCallback, useState } from 'react';
+import { Pressable, Text, View } from 'react-native';
+import { useAuth } from '../../auth/AuthContext';
+import BlueHeader from '../../components/BlueHeader';
+import Page from '../../components/Page';
+import AppButton from '../../components/AppButton';
+import SectionTitle from '../../components/SectionTitle';
+import EmptyState from '../../components/EmptyState';
+import { useSelectedClass } from '../../state/ClassContext';
+import { common } from '../../styles/components.styles';
+import styles from '../../styles/classes.styles';
+import { badgeColors, colors } from '../../theme';
+import { badgeText } from '../../utils/format';
 
 export default function Classes() {
   const db = useSQLiteContext();
@@ -33,38 +39,29 @@ export default function Classes() {
   );
 
   return (
-    <View style={{ flex: 1, backgroundColor: theme.bg }}>
+    <View style={common.screen}>
       <BlueHeader
         title="My Classes"
-        right={{ icon: "add", onPress: () => router.push("/register-class") }}
+        subtitle="Manage the classes you teach"
+        right={{ icon: 'add', onPress: () => router.push('/register-class') }}
       />
-      <ScrollView contentContainerStyle={styles.content}>
-        <View style={styles.registerCard}>
-          <View style={styles.registerTop}>
-            <View style={styles.iconCircle}>
-              <Ionicons name="people" size={30} color={theme.primary} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.registerTitle}>Register a New Class</Text>
-              <Text style={styles.muted}>
-                Add a new class to start managing your students and results.
-              </Text>
-            </View>
-          </View>
-          <Pressable
-            style={styles.registerBtn}
-            onPress={() => router.push("/register-class")}
-          >
-            <Ionicons name="add" size={22} color="#fff" />
-            <Text style={styles.registerBtnText}>Register Class</Text>
-          </Pressable>
-        </View>
+      <Page>
+        <AppButton
+          variant="soft"
+          icon="add-circle-outline"
+          title="Register a new class"
+          onPress={() => router.push('/register-class')}
+        />
 
-        <Text style={styles.section}>My Classes</Text>
+        <SectionTitle
+          title="All classes"
+          meta={`${classes.length} ${classes.length === 1 ? 'class' : 'classes'}`}
+        />
+
         {classes.length === 0 && (
-          <Text style={[styles.muted, { textAlign: "center" }]}>
-            No classes yet.
-          </Text>
+          <EmptyState icon="school-outline" title="No classes yet">
+            Register a class to start adding students and subjects.
+          </EmptyState>
         )}
 
         {classes.map((c, i) => {
@@ -72,95 +69,28 @@ export default function Classes() {
           return (
             <Pressable
               key={c.id}
-              style={styles.card}
+              style={({ pressed }) => [styles.card, pressed && styles.pressed]}
               onPress={() => {
                 setSelectedClassId(c.id);
-                router.navigate("/");
+                router.navigate('/');
               }}
             >
               <View style={[styles.badge, { backgroundColor: color.bg }]}>
-                <Text style={[styles.badgeText, { color: color.fg }]}>
-                  {badgeText(c.name)}
-                </Text>
+                <Text style={[styles.badgeText, { color: color.fg }]}>{badgeText(c.name)}</Text>
               </View>
-              <View style={{ flex: 1 }}>
+              <View style={styles.cardBody}>
                 <Text style={styles.cardTitle}>{c.name}</Text>
-                <Text style={styles.muted}>
-                  {[c.term, c.year].filter(Boolean).join("  •  ")}
-                </Text>
+                <Text style={styles.cardMeta}>{[c.term, c.year].filter(Boolean).join('  |  ')}</Text>
                 <View style={styles.countRow}>
-                  <Ionicons name="people" size={16} color={theme.greenDark} />
-                  <Text style={styles.countText}>
-                    {c.student_count} students
-                  </Text>
+                  <Ionicons name="people-outline" size={16} color={colors.textSecondary} />
+                  <Text style={styles.countText}>{c.student_count} students</Text>
                 </View>
               </View>
-              <Ionicons name="chevron-forward" size={22} color={theme.muted} />
+              <Ionicons name="chevron-forward" size={20} color={colors.muted} />
             </Pressable>
           );
         })}
-      </ScrollView>
+      </Page>
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  content: { padding: 16, gap: 12, paddingBottom: 30 },
-  muted: { color: theme.muted },
-  registerCard: {
-    backgroundColor: "#DDEBFA",
-    borderRadius: 18,
-    padding: 16,
-    gap: 14,
-  },
-  registerTop: { flexDirection: "row", alignItems: "center", gap: 12 },
-  iconCircle: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: "#fff",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  registerTitle: { fontSize: 18, fontWeight: "bold", color: theme.text },
-  registerBtn: {
-    backgroundColor: theme.primary,
-    borderRadius: 12,
-    padding: 14,
-    flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
-    gap: 6,
-  },
-  registerBtnText: { color: "#fff", fontWeight: "bold", fontSize: 17 },
-  section: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: theme.text,
-    marginTop: 6,
-  },
-  card: {
-    backgroundColor: "#fff",
-    borderRadius: 16,
-    padding: 14,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-  },
-  badge: {
-    width: 58,
-    height: 58,
-    borderRadius: 14,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  badgeText: { fontSize: 18, fontWeight: "bold" },
-  cardTitle: { fontSize: 18, fontWeight: "bold", color: theme.text },
-  countRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    marginTop: 4,
-  },
-  countText: { color: theme.text },
-});

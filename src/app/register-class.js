@@ -1,10 +1,13 @@
 import { useState } from 'react';
-import { View, Text, TextInput, Pressable, ScrollView, StyleSheet, Alert } from 'react-native';
+import { Alert, View, Text } from 'react-native';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../auth/AuthContext';
 import { useSelectedClass } from '../state/ClassContext';
-import { theme } from '../theme';
+import Page from '../components/Page';
+import AppButton from '../components/AppButton';
+import AppInput from '../components/AppInput';
+import styles from '../styles/forms.styles';
 
 export default function RegisterClass() {
   const db = useSQLiteContext();
@@ -37,42 +40,41 @@ export default function RegisterClass() {
   }
 
   return (
-    <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-      <View style={styles.box}>
-        <Text style={styles.label}>Class name</Text>
-        <TextInput style={styles.input} placeholder="e.g. Standard 5A" value={name} onChangeText={setName} />
+    <Page>
+      <View style={styles.card}>
+        <View>
+          <Text style={styles.cardTitle}>Class details</Text>
+          <Text style={styles.cardSub}>Enter the details of the class you teach.</Text>
+        </View>
 
-        <Text style={styles.label}>Term</Text>
-        <TextInput style={styles.input} placeholder="e.g. Term 1" value={term} onChangeText={setTerm} />
-
-        <Text style={styles.label}>Year</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="e.g. 2026"
-          value={year}
-          onChangeText={setYear}
-          keyboardType="numeric"
+        <AppInput
+          label="Class name"
+          icon="school-outline"
+          placeholder="e.g. Standard 5A"
+          value={name}
+          onChangeText={setName}
         />
 
-        <Pressable style={styles.button} onPress={save}>
-          <Text style={styles.buttonText}>Register Class</Text>
-        </Pressable>
+        <View style={styles.twoCols}>
+          <AppInput
+            containerStyle={styles.col}
+            label="Term"
+            placeholder="e.g. Term 1"
+            value={term}
+            onChangeText={setTerm}
+          />
+          <AppInput
+            containerStyle={styles.col}
+            label="Year"
+            placeholder="e.g. 2026"
+            value={year}
+            onChangeText={setYear}
+            keyboardType="numeric"
+          />
+        </View>
+
+        <AppButton title="Register Class" icon="checkmark" onPress={save} />
       </View>
-    </ScrollView>
+    </Page>
   );
 }
-
-const styles = StyleSheet.create({
-  content: { padding: 16 },
-  box: {
-    backgroundColor: '#fff', borderRadius: 18, padding: 18, gap: 8,
-    width: '100%', maxWidth: 480, alignSelf: 'center',
-  },
-  label: { fontWeight: 'bold', color: theme.text, marginTop: 4 },
-  input: {
-    borderWidth: 1, borderColor: theme.border, borderRadius: 10,
-    padding: 12, fontSize: 16, backgroundColor: '#F7FAFE',
-  },
-  button: { backgroundColor: theme.primary, padding: 15, borderRadius: 12, alignItems: 'center', marginTop: 12 },
-  buttonText: { color: '#fff', fontWeight: 'bold', fontSize: 17 },
-});

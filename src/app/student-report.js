@@ -1,13 +1,17 @@
 import { useCallback, useState } from 'react';
-import { View, Text, Pressable, ScrollView, StyleSheet } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Text, View } from 'react-native';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useLocalSearchParams, useFocusEffect, Stack } from 'expo-router';
 import { computeResults } from '../utils/ranking';
 import { resultStatus } from '../utils/format';
-import { GRADE_SCALE, gradeForMark, gradeLabel } from '../utils/grading';
+import { gradeForMark, gradeLabel } from '../utils/grading';
 import { studentReportHtml, sharePdf } from '../utils/reports';
-import { theme } from '../theme';
+import Page from '../components/Page';
+import AppButton from '../components/AppButton';
+import Notice from '../components/Notice';
+import StatTile from '../components/StatTile';
+import GradeKey from '../components/GradeKey';
+import styles from '../styles/results.styles';
 
 export default function StudentReport() {
   const db = useSQLiteContext();
@@ -63,126 +67,76 @@ export default function StudentReport() {
 
   const { cls, term, subjects, row, classSize, maxTotal, passMark } = data;
   const status = resultStatus(row);
-  const statusColor =
-    status === 'Pass' ? theme.greenDark : status === 'Fail' ? theme.danger : '#8A6100';
+  const statusTone = status === 'Pass' ? 'success' : status === 'Fail' ? 'danger' : 'warning';
   const termLabel = term ? [term.name, term.year].filter(Boolean).join(' ') : '';
 
   return (
-    <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.content}>
+    <Page>
       <Stack.Screen options={{ title: row.name }} />
 
       <View style={styles.header}>
         <View style={styles.avatar}>
           <Text style={styles.avatarText}>{row.name.trim().charAt(0).toUpperCase()}</Text>
         </View>
-        <Text style={styles.name}>{row.name}</Text>
-        <Text style={styles.sub}>{cls.name}  •  {row.gender}  •  {termLabel}</Text>
+        <Text style={styles.title}>{row.name}</Text>
+        <Text style={styles.sub}>
+          {cls.name}  |  {row.gender === 'M' ? 'Male' : 'Female'}  |  {termLabel}
+        </Text>
       </View>
 
-      <View style={styles.stats}>
-        <View style={[styles.stat, { backgroundColor: '#DDEBFA' }]}>
-          <Text style={styles.statNum}>{row.rank}</Text>
-          <Text style={styles.statLabel}>of {classSize}</Text>
-        </View>
-        <View style={[styles.stat, { backgroundColor: theme.purple }]}>
-          <Text style={styles.statNum}>{row.percentage.toFixed(1)}%</Text>
-          <Text style={styles.statLabel}>Grade {row.grade}</Text>
-        </View>
-        <View style={[styles.stat, { backgroundColor: '#fff' }]}>
-          <Text style={[styles.statNum, { color: statusColor, fontSize: 20 }]}>{status}</Text>
-          <Text style={styles.statLabel}>Result</Text>
-        </View>
+      <View style={styles.statsRow}>
+        <StatTile value={`${row.rank}/${classSize}`} label="Position" tone="primary" />
+        <StatTile value={`${row.percentage.toFixed(1)}%`} label={`Grade ${row.grade}`} tone="accent" />
+        <StatTile value={status} label="Result" tone={statusTone} />
       </View>
 
       <View style={styles.table}>
-        <View style={[styles.line, styles.headRow]}>
+        <View style={[styles.row, styles.headRow]}>
           <Text style={[styles.cell, styles.subjectCol, styles.headText]}>Subject</Text>
-          <Text style={[styles.cell, styles.markCol, styles.headText]}>Mark</Text>
-          <Text style={[styles.cell, styles.gradeCol, styles.headText]}>Grade</Text>
+          <Text style={[styles.cell, styles.reportMark, styles.headText]}>Mark</Text>
+          <Text style={[styles.cell, styles.reportGrade, styles.headText]}>Grade</Text>
         </View>
         {subjects.map((s, i) => {
           const m = row.marks[i];
           const g = gradeForMark(m, s.max_score);
           return (
-            <View key={s.id} style={[styles.line, i % 2 === 1 && styles.altRow]}>
+            <View key={s.id} style={[styles.row, i % 2 === 1 && styles.altRow]}>
               <Text style={[styles.cell, styles.subjectCol]}>{s.name}</Text>
-              <Text style={[styles.cell, styles.markCol, m === null && { color: theme.danger }]}>
+              <Text style={[styles.cell, styles.reportMark, m === null && styles.missing]}>
                 {m === null ? '-' : `${m}/${s.max_score}`}
               </Text>
-              <Text style={[styles.cell, styles.gradeCol]}>
-                {g === null ? '-' : `${g} ${gradeLabel(g)}`}
+              <Text style={[styles.cell, styles.reportGrade]}>
+                {g === null ? '-' : `${g}  ${gradeLabel(g)}`}
               </Text>
             </View>
           );
         })}
-        <View style={[styles.line, styles.totalRow]}>
+        <View style={[styles.row, styles.totalRow]}>
           <Text style={[styles.cell, styles.subjectCol, styles.bold]}>TOTAL</Text>
-          <Text style={[styles.cell, styles.markCol, styles.bold]}>{row.total}/{maxTotal}</Text>
-          <Text style={[styles.cell, styles.gradeCol, styles.bold]}>
-            {row.grade} {gradeLabel(row.grade)}
+          <Text style={[styles.cell, styles.reportMark, styles.bold]}>{row.total}/{maxTotal}</Text>
+          <Text style={[styles.cell, styles.reportGrade, styles.bold]}>
+            {row.grade}  {gradeLabel(row.grade)}
           </Text>
         </View>
       </View>
 
       <Text style={styles.note}>Pass mark: {passMark} (half of the total marks)</Text>
+
       {row.missing > 0 && (
-        <View style={styles.warn}>
-          <Text style={styles.warnText}>
-            {row.missing} subject{row.missing > 1 ? 's have' : ' has'} no mark yet. Missing marks count as 0.
-          </Text>
-        </View>
+        <Notice tone="warning">
+          {row.missing} subject{row.missing > 1 ? 's have' : ' has'} no mark yet. Missing marks count as 0.
+        </Notice>
       )}
 
-      <View style={styles.keyCard}>
-        <Text style={styles.keyTitle}>Grade key</Text>
-        {GRADE_SCALE.map((g) => (
-          <Text key={g.value} style={styles.keyLine}>
-            Grade {g.value}  •  {g.label}  •  {g.range}
-          </Text>
-        ))}
-      </View>
+      <GradeKey />
 
-      <Pressable style={[styles.pdfBtn, busy && { opacity: 0.6 }]} onPress={exportPdf} disabled={busy}>
-        <Ionicons name="share-outline" size={22} color="#fff" />
-        <Text style={styles.pdfText}>{busy ? 'Creating PDF...' : 'Share student report (PDF)'}</Text>
-      </Pressable>
-    </ScrollView>
+      <AppButton
+        variant="navy"
+        icon="share-outline"
+        title={busy ? 'Creating PDF...' : 'Share student report (PDF)'}
+        onPress={exportPdf}
+        loading={busy}
+      />
+    </Page>
   );
 }
-
-const styles = StyleSheet.create({
-  content: { padding: 14, gap: 12, paddingBottom: 40 },
-  centerMsg: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 30 },
-  msg: { textAlign: 'center', fontSize: 16, color: theme.muted },
-  header: { backgroundColor: '#fff', borderRadius: 18, padding: 16, alignItems: 'center', gap: 4 },
-  avatar: { width: 64, height: 64, borderRadius: 32, backgroundColor: theme.primary, alignItems: 'center', justifyContent: 'center' },
-  avatarText: { color: '#fff', fontSize: 28, fontWeight: 'bold' },
-  name: { fontSize: 22, fontWeight: 'bold', color: theme.text, textAlign: 'center' },
-  sub: { color: theme.muted, textAlign: 'center' },
-  stats: { flexDirection: 'row', gap: 10 },
-  stat: { flex: 1, borderRadius: 14, padding: 12, alignItems: 'center', justifyContent: 'center' },
-  statNum: { fontSize: 24, fontWeight: 'bold', color: theme.text },
-  statLabel: { color: theme.text, fontWeight: '600', fontSize: 13 },
-  table: { backgroundColor: '#fff', borderRadius: 16, overflow: 'hidden' },
-  line: { flexDirection: 'row', alignItems: 'center' },
-  headRow: { backgroundColor: theme.header },
-  altRow: { backgroundColor: '#F2F8FE' },
-  totalRow: { backgroundColor: '#DDEBFA' },
-  cell: { paddingVertical: 11, paddingHorizontal: 10, color: theme.text },
-  headText: { color: '#fff', fontWeight: 'bold' },
-  subjectCol: { flex: 1 },
-  markCol: { width: 84, textAlign: 'center' },
-  gradeCol: { width: 120, textAlign: 'center' },
-  bold: { fontWeight: 'bold' },
-  note: { textAlign: 'center', color: theme.muted },
-  warn: { backgroundColor: '#FFF4D6', padding: 10, borderRadius: 10 },
-  warnText: { color: '#8A6100', textAlign: 'center' },
-  keyCard: { backgroundColor: '#fff', borderRadius: 14, padding: 14, gap: 4 },
-  keyTitle: { fontWeight: 'bold', color: theme.text, marginBottom: 2 },
-  keyLine: { color: theme.text },
-  pdfBtn: {
-    backgroundColor: theme.purpleDark, borderRadius: 12, padding: 14,
-    flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8,
-  },
-  pdfText: { color: '#fff', fontWeight: 'bold', fontSize: 16 },
-});
