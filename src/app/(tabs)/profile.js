@@ -1,18 +1,27 @@
-import { Pressable, Text, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Alert, Pressable, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../../auth/AuthContext';
 import BlueHeader from '../../components/BlueHeader';
-import SchoolLogo from '../../components/SchoolLogo';
 import Page from '../../components/Page';
 import AppButton from '../../components/AppButton';
+import AppInput from '../../components/AppInput';
 import { common } from '../../styles/components.styles';
 import styles from '../../styles/profile.styles';
 import { colors } from '../../theme';
 
 export default function Profile() {
   const router = useRouter();
-  const { teacherName, logout } = useAuth();
+  const { teacherName, schoolName, updateSchoolName, logout } = useAuth();
+  const [school, setSchool] = useState(schoolName);
+
+  useEffect(() => { setSchool(schoolName); }, [schoolName]);
+
+  async function saveSchool() {
+    await updateSchoolName(school);
+    Alert.alert('Saved', school.trim() ? 'Your school name will appear on reports.' : 'School name removed from reports.');
+  }
 
   return (
     <View style={common.screen}>
@@ -24,11 +33,21 @@ export default function Profile() {
           </View>
           <Text style={styles.name}>{teacherName}</Text>
           <Text style={styles.role}>Teacher</Text>
-          <View style={styles.divider} />
-          <View style={styles.schoolRow}>
-            <SchoolLogo size={44} />
-            <Text style={styles.schoolName}>Catholic Institute Primary School</Text>
+          {schoolName ? <Text style={styles.schoolLine}>{schoolName}</Text> : null}
+        </View>
+
+        <View style={styles.settingsCard}>
+          <View>
+            <Text style={styles.settingsTitle}>School name</Text>
+            <Text style={styles.settingsSub}>Optional. It is printed at the top of your PDF reports.</Text>
           </View>
+          <AppInput
+            icon="business-outline"
+            placeholder="e.g. Green Valley Primary School"
+            value={school}
+            onChangeText={setSchool}
+          />
+          <AppButton variant="soft" title="Save school name" onPress={saveSchool} />
         </View>
 
         <Pressable

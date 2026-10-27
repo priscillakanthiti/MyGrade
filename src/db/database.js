@@ -107,4 +107,13 @@ export async function migrateDb(db) {
     await db.execAsync("PRAGMA user_version = 3;");
     version = 3;
   }
+
+  // Version 4: optional school name, so the app is generic for any teacher
+  if (version < 4) {
+    if (!(await hasColumn(db, "teachers", "school_name"))) {
+      await db.execAsync("ALTER TABLE teachers ADD COLUMN school_name TEXT;");
+    }
+    await db.execAsync("PRAGMA user_version = 4;");
+    version = 4;
+  }
 }

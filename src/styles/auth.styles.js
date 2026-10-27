@@ -24,12 +24,13 @@ export default StyleSheet.create({
     marginBottom: spacing.sm,
     ...shadow.raised,
   },
-  heroSchool: {
+  heroTitle: {
     color: colors.white,
-    fontSize: font.size.xl,
-    lineHeight: font.lineHeight.xl,
+    fontSize: font.size.display,
+    lineHeight: font.lineHeight.display,
     fontWeight: font.weight.bold,
     textAlign: 'center',
+    marginTop: spacing.md,
   },
   heroTagline: {
     color: colors.headerMuted,
@@ -68,6 +69,31 @@ export default StyleSheet.create({
     lineHeight: font.lineHeight.md,
     textAlign: 'center',
   },
+  featureList: { gap: spacing.md },
+  featureRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.md,
+  },
+  featureIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: radius.sm,
+    backgroundColor: colors.primarySoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  featureText: {
+    flex: 1,
+    fontSize: font.size.md,
+    lineHeight: font.lineHeight.md,
+    color: colors.text,
+  },
   imageWrap: {
     flex: 1,
     minHeight: 90,
@@ -78,7 +104,7 @@ export default StyleSheet.create({
     ...shadow.card,
   },
   building: { width: '100%', height: '100%' },
-  welcomeFooter: { gap: spacing.md },
+  welcomeFooter: { gap: spacing.md, marginTop: 'auto' },
 
   // ----- Login / Forgot PIN -----
   authScreen: {

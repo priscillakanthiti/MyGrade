@@ -5,7 +5,7 @@ import { useCallback, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { useAuth } from '../../auth/AuthContext';
 import BlueHeader from '../../components/BlueHeader';
-import SchoolLogo from '../../components/SchoolLogo';
+import AppLogo from '../../components/AppLogo';
 import Page from '../../components/Page';
 import Dropdown from '../../components/Dropdown';
 import StatTile from '../../components/StatTile';
@@ -53,7 +53,7 @@ const ACTIONS = [
 export default function Home() {
   const db = useSQLiteContext();
   const router = useRouter();
-  const { teacherId, teacherName } = useAuth();
+  const { teacherId, teacherName, schoolName } = useAuth();
   const { selectedClassId, setSelectedClassId } = useSelectedClass();
 
   const [classes, setClasses] = useState([]);
@@ -107,10 +107,10 @@ export default function Home() {
           <View style={styles.greetTexts}>
             <Text style={styles.greetSmall}>{greeting()}</Text>
             <Text style={styles.greetName} numberOfLines={1}>{teacherName}</Text>
-            <Text style={styles.greetSchool}>Catholic Institute Primary School</Text>
+            <Text style={styles.greetSchool}>{schoolName || 'Your classes at a glance'}</Text>
           </View>
           <View style={styles.logoBox}>
-            <SchoolLogo size={46} />
+            <AppLogo size={44} />
           </View>
         </View>
 
@@ -162,7 +162,7 @@ export default function Home() {
           </EmptyState>
         )}
 
-        <Text style={styles.footer}>Better Data. Better Decisions. Better Learning.</Text>
+        <Text style={styles.footer}>Record. Track. Report.</Text>
       </Page>
     </View>
   );

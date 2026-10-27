@@ -2,16 +2,21 @@ import { useCallback, useState } from 'react';
 import { Text, View } from 'react-native';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useLocalSearchParams, useFocusEffect, Stack } from 'expo-router';
+import { useAuth } from '../auth/AuthContext';
 import { computeResults } from '../utils/ranking';
+import { studentProgress, trendOf } from '../utils/stats';
 import { resultStatus } from '../utils/format';
 import { gradeForMark, gradeLabel } from '../utils/grading';
-import { studentReportHtml, sharePdf } from '../utils/reports';
+import { studentReportHtml, sharePdf, printReport } from '../utils/reports';
 import Page from '../components/Page';
 import AppButton from '../components/AppButton';
 import Notice from '../components/Notice';
 import StatTile from '../components/StatTile';
 import GradeKey from '../components/GradeKey';
+import ProgressChart from '../components/ProgressChart';
+import TrendBadge from '../components/TrendBadge';
 import styles from '../styles/results.styles';
+import statStyles from '../styles/stats.styles';
 
 export default function StudentReport() {
   const db = useSQLiteContext();
@@ -20,6 +25,7 @@ export default function StudentReport() {
   const stid = Number(studentId);
   const tid = termId ? Number(termId) : null;
 
+  const { schoolName, teacherName } = useAuth();
   const [data, setData] = useState(null);
   const [busy, setBusy] = useState(false);
 
@@ -35,8 +41,19 @@ export default function StudentReport() {
       : [];
     const result = computeResults(students, subjects, scores);
     const row = result.rows.find((r) => r.studentId === stid);
+
+    // Progress across the terms of the same academic year, oldest first
+    const allTerms = await db.getAllAsync('SELECT * FROM terms WHERE class_id = ? ORDER BY id', cid);
+    const sameYear = term && term.year ? allTerms.filter((x) => x.year === term.year) : allTerms;
+    const yearTerms = sameYear.length ? sameYear : allTerms;
+    const scoresByTerm = {};
+    for (const x of yearTerms) {
+      scoresByTerm[x.id] = await db.getAllAsync('SELECT * FROM scores WHERE term_id = ?', x.id);
+    }
+    const progress = studentProgress(yearTerms, scoresByTerm, students, subjects, stid);
+
     setData({
-      cls, term, subjects, row,
+      cls, term, subjects, row, progress, trend: trendOf(progress),
       classSize: result.rows.length,
       maxTotal: result.maxTotal,
       passMark: result.passMark,
@@ -45,11 +62,16 @@ export default function StudentReport() {
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
+  async function printStudent() {
+    if (!data || !data.row) return;
+    await printReport(studentReportHtml({ ...data, schoolName, teacherName }));
+  }
+
   async function exportPdf() {
     if (!data || !data.row) return;
     setBusy(true);
     await sharePdf(
-      studentReportHtml(data),
+      studentReportHtml({ ...data, schoolName, teacherName }),
       `${data.row.name}_report`,
       `${data.row.name} report`
     );
@@ -65,7 +87,7 @@ export default function StudentReport() {
     );
   }
 
-  const { cls, term, subjects, row, classSize, maxTotal, passMark } = data;
+  const { cls, term, subjects, row, classSize, maxTotal, passMark, progress, trend } = data;
   const status = resultStatus(row);
   const statusTone = status === 'Pass' ? 'success' : status === 'Fail' ? 'danger' : 'warning';
   const termLabel = term ? [term.name, term.year].filter(Boolean).join(' ') : '';
@@ -128,6 +150,17 @@ export default function StudentReport() {
         </Notice>
       )}
 
+      <View style={statStyles.card}>
+        <View>
+          <Text style={statStyles.cardTitle}>Progress this year</Text>
+          <Text style={statStyles.cardSub}>Overall percentage in each term, compared with the class average.</Text>
+        </View>
+        {progress.length > 0 ? (
+          <ProgressChart points={progress} studentLabel={row.name.split(' ')[0]} />
+        ) : null}
+        <TrendBadge trend={trend} />
+      </View>
+
       <GradeKey />
 
       <AppButton
@@ -137,6 +170,7 @@ export default function StudentReport() {
         onPress={exportPdf}
         loading={busy}
       />
+      <AppButton variant="secondary" icon="print-outline" title="Print report" onPress={printStudent} />
     </Page>
   );
 }

@@ -1,49 +1,34 @@
-import { Image, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import SchoolLogo from '../components/SchoolLogo';
-import AppButton from '../components/AppButton';
-import styles from '../styles/auth.styles';
+import AppLogo from '../components/AppLogo';
+import styles from '../styles/welcome.styles';
+import { colors } from '../theme';
 
 export default function Welcome() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
   return (
-    <View style={styles.welcomeScreen}>
-      <View style={[styles.hero, { paddingTop: insets.top + 28 }]}>
-        <View style={styles.heroLogoWrap}>
-          <SchoolLogo size={84} />
-        </View>
-        <Text style={styles.heroSchool}>Catholic Institute Primary School</Text>
-        <Text style={styles.heroTagline}>Learn  |  Grow  |  Build a Better Tomorrow</Text>
+    <View style={[styles.screen, { paddingTop: insets.top, paddingBottom: insets.bottom + 24 }]}>
+      <View style={styles.center}>
+        <AppLogo size={96} light />
+        <Text style={styles.title}>My Grade App</Text>
+        <View style={styles.divider} />
+        <Text style={styles.statement}>
+          Easily record and calculate student results - all in one place.
+        </Text>
       </View>
 
-      <View style={[styles.welcomeBody, { paddingBottom: insets.bottom + 20 }]}>
-        <View>
-          <Text style={styles.welcomeEyebrow}>Welcome to</Text>
-          <Text style={styles.appName}>My Grade App</Text>
-        </View>
-        <Text style={styles.appSub}>
-          Simple, efficient record keeping and reporting for a brighter future in education.
-        </Text>
-
-        <View style={styles.imageWrap}>
-          <Image
-            source={require('../../assets/images/school-building.png')}
-            style={styles.building}
-            resizeMode="cover"
-          />
-        </View>
-
-        <View style={styles.welcomeFooter}>
-          <AppButton
-            title="Get Started"
-            icon="arrow-forward"
-            iconRight
-            onPress={() => router.push('/login')}
-          />
-        </View>
+      <View style={styles.footer}>
+        <Pressable
+          style={({ pressed }) => [styles.button, pressed && styles.pressed]}
+          onPress={() => router.push('/login')}
+        >
+          <Text style={styles.buttonText}>Get Started</Text>
+          <Ionicons name="arrow-forward" size={20} color={colors.primaryDark} />
+        </Pressable>
       </View>
     </View>
   );

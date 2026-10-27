@@ -27,6 +27,7 @@ function RootNav() {
         <Stack.Screen name="students" options={{ title: 'Students' }} />
         <Stack.Screen name="marks" options={{ title: 'Enter Marks' }} />
         <Stack.Screen name="results" options={{ title: 'Results' }} />
+        <Stack.Screen name="class-stats" options={{ title: 'Class Statistics' }} />
         <Stack.Screen name="student-report" options={{ title: 'Student Report' }} />
         <Stack.Screen name="new-term" options={{ title: 'Start New Term' }} />
         <Stack.Screen name="account-security" options={{ title: 'Security' }} />

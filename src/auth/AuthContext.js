@@ -17,6 +17,7 @@ export function AuthProvider({ children }) {
   const db = useSQLiteContext();
   const [teacherId, setTeacherId] = useState(null);
   const [teacherName, setTeacherName] = useState('');
+  const [schoolName, setSchoolName] = useState('');
   const [loading, setLoading] = useState(true);
 
   // Restore the previous session when the app opens
@@ -29,6 +30,7 @@ export function AuthProvider({ children }) {
           if (t) {
             setTeacherId(t.id);
             setTeacherName(t.name);
+            setSchoolName(t.school_name || '');
           }
         }
       } finally {
@@ -41,6 +43,7 @@ export function AuthProvider({ children }) {
     await SecureStore.setItemAsync('teacherId', String(t.id));
     setTeacherId(t.id);
     setTeacherName(t.name);
+    setSchoolName(t.school_name || '');
   }
 
   async function register(name, username, pin, question, answer) {
@@ -70,10 +73,19 @@ export function AuthProvider({ children }) {
 
   async function login(username, pin) {
     const u = username.trim().toLowerCase();
+    const cleanPin = String(pin || '').trim();
+    if (!u || !cleanPin) return 'Enter your username and PIN.';
+
     const t = await db.getFirstAsync('SELECT * FROM teachers WHERE username = ?', u);
-    if (!t) return 'Wrong username or PIN.';
-    const hash = await hashValue(t.salt, pin);
-    if (hash !== t.password_hash) return 'Wrong username or PIN.';
+    if (!t) {
+      const count = await db.getFirstAsync('SELECT COUNT(*) AS n FROM teachers');
+      if (!count || count.n === 0) {
+        return 'No accounts exist on this device yet. Tap Sign Up to create one. (Accounts are stored on the phone where they were created, so a new install or a different phone starts empty.)';
+      }
+      return 'No account found with that username on this device. Check the spelling, or tap Sign Up.';
+    }
+    const hash = await hashValue(t.salt, cleanPin);
+    if (hash !== t.password_hash) return 'Incorrect PIN for this username.';
     await startSession(t);
     return null;
   }
@@ -82,6 +94,14 @@ export function AuthProvider({ children }) {
     await SecureStore.deleteItemAsync('teacherId');
     setTeacherId(null);
     setTeacherName('');
+    setSchoolName('');
+  }
+
+  // Optional school name that is printed on reports
+  async function updateSchoolName(value) {
+    const v = String(value || '').trim();
+    await db.runAsync('UPDATE teachers SET school_name = ? WHERE id = ?', v, teacherId);
+    setSchoolName(v);
   }
 
   // ----- Forgot PIN -----
@@ -144,7 +164,8 @@ export function AuthProvider({ children }) {
   return (
     <AuthContext.Provider
       value={{
-        teacherId, teacherName, loading,
+        teacherId, teacherName, schoolName, loading,
+        updateSchoolName,
         register, login, logout,
         getSecurityQuestion, resetPin, changePin, setSecurityQuestion,
       }}

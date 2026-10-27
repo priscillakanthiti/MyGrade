@@ -3,7 +3,7 @@ import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, View } fro
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../auth/AuthContext';
-import SchoolLogo from '../components/SchoolLogo';
+import AppLogo from '../components/AppLogo';
 import QuestionPicker from '../components/QuestionPicker';
 import AppButton from '../components/AppButton';
 import AppInput from '../components/AppInput';
@@ -46,8 +46,8 @@ export default function Login() {
       <ScrollView contentContainerStyle={styles.authScreen} keyboardShouldPersistTaps="handled">
         <View style={styles.authBox}>
           <View style={styles.brand}>
-            <SchoolLogo size={88} />
-            <Text style={styles.brandName}>Catholic Institute Primary School</Text>
+            <AppLogo size={76} />
+            <Text style={styles.brandName}>My Grade App</Text>
           </View>
 
           <View style={styles.authCard}>
@@ -140,7 +140,7 @@ export default function Login() {
             )}
           </View>
 
-          <Text style={styles.authFooter}>Better Data. Better Decisions. Better Learning.</Text>
+          <Text style={styles.authFooter}>Record. Track. Report.</Text>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>

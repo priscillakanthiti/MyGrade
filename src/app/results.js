@@ -2,10 +2,11 @@ import { useCallback, useEffect, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useLocalSearchParams, useFocusEffect, useRouter, Stack } from 'expo-router';
+import { useAuth } from '../auth/AuthContext';
 import { computeResults } from '../utils/ranking';
 import { resultStatus } from '../utils/format';
 import { gradeForMark } from '../utils/grading';
-import { classReportHtml, sharePdf } from '../utils/reports';
+import { classReportHtml, sharePdf, printReport } from '../utils/reports';
 import Page from '../components/Page';
 import AppButton from '../components/AppButton';
 import Notice from '../components/Notice';
@@ -30,6 +31,7 @@ export default function Results() {
   const db = useSQLiteContext();
   const router = useRouter();
   const { classId, t } = useLocalSearchParams();
+  const { schoolName, teacherName } = useAuth();
   const cid = Number(classId);
 
   const [cls, setCls] = useState(null);
@@ -81,7 +83,9 @@ export default function Results() {
   async function exportPdf() {
     if (!cls) return;
     setBusy(true);
-    const html = classReportHtml({ cls, term: activeTerm, subjects, rows, maxTotal, passMark });
+    const html = classReportHtml({
+      cls, term: activeTerm, subjects, rows, maxTotal, passMark, schoolName, teacherName,
+    });
     const termName = activeTerm ? activeTerm.name : 'results';
     await sharePdf(
       html,
@@ -90,6 +94,15 @@ export default function Results() {
       subjects.length > 4 ? { width: 842, height: 595 } : undefined
     );
     setBusy(false);
+  }
+
+  async function printClass() {
+    if (!cls) return;
+    await printReport(
+      classReportHtml({
+        cls, term: activeTerm, subjects, rows, maxTotal, passMark, schoolName, teacherName,
+      })
+    );
   }
 
   function openStudent(studentId) {
@@ -179,12 +192,24 @@ export default function Results() {
       </View>
 
       <AppButton
+        icon="analytics-outline"
+        title="Class statistics and charts"
+        onPress={() =>
+          router.push({
+            pathname: '/class-stats',
+            params: { classId: String(cid), termId: activeTerm ? String(activeTerm.id) : '' },
+          })
+        }
+      />
+
+      <AppButton
         variant="navy"
         icon="share-outline"
         title={busy ? 'Creating PDF...' : 'Share class report (PDF)'}
         onPress={exportPdf}
         loading={busy}
       />
+      <AppButton variant="secondary" icon="print-outline" title="Print class report" onPress={printClass} />
 
       {incompleteCount > 0 && (
         <Notice tone="warning">

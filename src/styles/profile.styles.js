@@ -68,5 +68,17 @@ export default StyleSheet.create({
   menuTexts: { flex: 1, gap: 2 },
   menuTitle: { fontSize: font.size.md, fontWeight: font.weight.bold, color: colors.text },
   menuSub: { fontSize: font.size.sm, color: colors.muted },
+  schoolLine: { fontSize: font.size.sm, color: colors.muted, textAlign: 'center', marginTop: 2 },
+  settingsCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.lg,
+    gap: spacing.md,
+    ...shadow.card,
+  },
+  settingsTitle: { fontSize: font.size.md, fontWeight: font.weight.bold, color: colors.text },
+  settingsSub: { fontSize: font.size.sm, lineHeight: font.lineHeight.sm, color: colors.muted },
   pressed: { opacity: 0.85 },
 });
