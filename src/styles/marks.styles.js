@@ -77,5 +77,13 @@ export default StyleSheet.create({
   },
   scoreErr: { borderColor: colors.danger, backgroundColor: colors.dangerSoft },
   max: { width: 44, fontSize: font.size.sm, color: colors.muted },
+  scanBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: radius.sm,
+    backgroundColor: colors.primarySoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   errWrap: { paddingHorizontal: spacing.lg, paddingBottom: spacing.lg },
 });

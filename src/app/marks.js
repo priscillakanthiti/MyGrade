@@ -1,13 +1,15 @@
 import { useCallback, useState } from 'react';
-import { FlatList, Text, TextInput, View } from 'react-native';
+import { FlatList, Pressable, Text, TextInput, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useSQLiteContext } from 'expo-sqlite';
-import { useLocalSearchParams, useFocusEffect, Stack } from 'expo-router';
+import { useLocalSearchParams, useFocusEffect, useRouter, Stack } from 'expo-router';
 import Notice from '../components/Notice';
 import styles from '../styles/marks.styles';
 import { colors } from '../theme';
 
 export default function Marks() {
   const db = useSQLiteContext();
+  const router = useRouter();
   const { classId, subjectId } = useLocalSearchParams();
   const cid = Number(classId);
   const sid = Number(subjectId);
@@ -126,6 +128,18 @@ export default function Marks() {
               selectTextOnFocus
             />
             <Text style={styles.max}>/ {maxLabel}</Text>
+            <Pressable
+              style={styles.scanBtn}
+              hitSlop={6}
+              onPress={() =>
+                router.push({
+                  pathname: '/script-marks',
+                  params: { classId: String(cid), studentId: String(item.id), subjectId: String(sid) },
+                })
+              }
+            >
+              <Ionicons name="scan-outline" size={20} color={colors.primary} />
+            </Pressable>
           </View>
         )}
       />

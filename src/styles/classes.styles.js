@@ -37,4 +37,17 @@ export default StyleSheet.create({
     color: colors.textSecondary,
     fontWeight: font.weight.semibold,
   },
+  termHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.lg },
+  termRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.md },
+  termChip: {
+    paddingVertical: 8,
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.pill,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+  },
+  termChipCurrent: { backgroundColor: colors.primaryDark, borderColor: colors.primaryDark },
+  termChipText: { fontSize: font.size.sm, fontWeight: font.weight.semibold, color: colors.textSecondary },
+  termChipTextCurrent: { color: colors.white },
 });

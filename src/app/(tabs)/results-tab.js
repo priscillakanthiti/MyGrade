@@ -18,15 +18,27 @@ export default function ResultsTab() {
   const router = useRouter();
   const { teacherId } = useAuth();
   const [classes, setClasses] = useState([]);
+  const [termsByClass, setTermsByClass] = useState({});
 
   const load = useCallback(async () => {
-    setClasses(
-      await db.getAllAsync(
-        'SELECT * FROM classes WHERE teacher_id = ? ORDER BY id DESC',
-        teacherId,
-      ),
+    const list = await db.getAllAsync(
+      'SELECT * FROM classes WHERE teacher_id = ? ORDER BY id DESC',
+      teacherId,
     );
+    const map = {};
+    for (const c of list) {
+      map[c.id] = await db.getAllAsync('SELECT * FROM terms WHERE class_id = ? ORDER BY id', c.id);
+    }
+    setClasses(list);
+    setTermsByClass(map);
   }, [db, teacherId]);
+
+  function openResults(classId, termId) {
+    router.push({
+      pathname: '/results',
+      params: { classId: String(classId), termId: termId ? String(termId) : '' },
+    });
+  }
 
   useFocusEffect(
     useCallback(() => {
@@ -48,26 +60,43 @@ export default function ResultsTab() {
 
         {classes.map((c, i) => {
           const color = badgeColors[i % badgeColors.length];
+          const terms = termsByClass[c.id] || [];
           return (
-            <Pressable
-              key={c.id}
-              style={({ pressed }) => [styles.card, pressed && styles.pressed]}
-              onPress={() =>
-                router.push({
-                  pathname: '/results',
-                  params: { classId: String(c.id) },
-                })
-              }
-            >
-              <View style={[styles.badge, { backgroundColor: color.bg }]}>
-                <Text style={[styles.badgeText, { color: color.fg }]}>{badgeText(c.name)}</Text>
+            <View key={c.id} style={[styles.card, { flexDirection: 'column', alignItems: 'stretch' }]}>
+              <Pressable
+                style={({ pressed }) => [styles.termHeader, pressed && styles.pressed]}
+                onPress={() => openResults(c.id, null)}
+              >
+                <View style={[styles.badge, { backgroundColor: color.bg }]}>
+                  <Text style={[styles.badgeText, { color: color.fg }]}>{badgeText(c.name)}</Text>
+                </View>
+                <View style={styles.cardBody}>
+                  <Text style={styles.cardTitle}>{c.name}</Text>
+                  <Text style={styles.cardMeta}>
+                    {terms.length} {terms.length === 1 ? 'term' : 'terms'} recorded
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color={colors.muted} />
+              </Pressable>
+
+              <View style={styles.termRow}>
+                {terms.map((t) => (
+                  <Pressable
+                    key={t.id}
+                    style={({ pressed }) => [
+                      styles.termChip,
+                      t.is_current === 1 && styles.termChipCurrent,
+                      pressed && styles.pressed,
+                    ]}
+                    onPress={() => openResults(c.id, t.id)}
+                  >
+                    <Text style={[styles.termChipText, t.is_current === 1 && styles.termChipTextCurrent]}>
+                      {[t.name, t.year].filter(Boolean).join(' ')} results
+                    </Text>
+                  </Pressable>
+                ))}
               </View>
-              <View style={styles.cardBody}>
-                <Text style={styles.cardTitle}>{c.name}</Text>
-                <Text style={styles.cardMeta}>{[c.term, c.year].filter(Boolean).join('  |  ')}</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={20} color={colors.muted} />
-            </Pressable>
+            </View>
           );
         })}
       </Page>

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Pressable, ScrollView, Text, View } from 'react-native';
+import { Alert, Pressable, ScrollView, Text, View } from 'react-native';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useLocalSearchParams, useFocusEffect, useRouter, Stack } from 'expo-router';
 import { useAuth } from '../auth/AuthContext';
@@ -10,6 +10,7 @@ import { classReportHtml, sharePdf, printReport } from '../utils/reports';
 import Page from '../components/Page';
 import AppButton from '../components/AppButton';
 import Notice from '../components/Notice';
+import AppInput from '../components/AppInput';
 import Segmented from '../components/Segmented';
 import StatTile from '../components/StatTile';
 import GradeKey from '../components/GradeKey';
@@ -30,14 +31,17 @@ function statusColor(status) {
 export default function Results() {
   const db = useSQLiteContext();
   const router = useRouter();
-  const { classId, t } = useLocalSearchParams();
+  const { classId, t, termId } = useLocalSearchParams();
   const { schoolName, teacherName } = useAuth();
   const cid = Number(classId);
 
   const [cls, setCls] = useState(null);
   const [terms, setTerms] = useState([]);
   const [activeTerm, setActiveTerm] = useState(null);
-  const [viewTermId, setViewTermId] = useState(null);
+  const [viewTermId, setViewTermId] = useState(termId ? Number(termId) : null);
+  const [editingTerm, setEditingTerm] = useState(false);
+  const [termName, setTermName] = useState('');
+  const [termYear, setTermYear] = useState('');
   const [view, setView] = useState('totals');
   const [subjects, setSubjects] = useState([]);
   const [rows, setRows] = useState([]);
@@ -46,7 +50,7 @@ export default function Results() {
   const [busy, setBusy] = useState(false);
 
   // After starting a new term, show the new current term
-  useEffect(() => { setViewTermId(null); }, [t]);
+  useEffect(() => { setViewTermId(termId ? Number(termId) : null); }, [t, termId]);
 
   const load = useCallback(async () => {
     const c = await db.getFirstAsync('SELECT * FROM classes WHERE id = ?', cid);
@@ -103,6 +107,28 @@ export default function Results() {
         cls, term: activeTerm, subjects, rows, maxTotal, passMark, schoolName, teacherName,
       })
     );
+  }
+
+  function startEditTerm() {
+    setTermName(activeTerm ? activeTerm.name : '');
+    setTermYear(activeTerm && activeTerm.year ? activeTerm.year : '');
+    setEditingTerm(true);
+  }
+
+  async function saveTerm() {
+    if (!activeTerm) return;
+    const n = termName.trim();
+    if (!n) {
+      Alert.alert('Check input', 'Enter the term name, for example Term 2.');
+      return;
+    }
+    const y = termYear.trim();
+    await db.runAsync('UPDATE terms SET name = ?, year = ? WHERE id = ?', n, y, activeTerm.id);
+    if (activeTerm.is_current === 1) {
+      await db.runAsync('UPDATE classes SET term = ?, year = ? WHERE id = ?', n, y, cid);
+    }
+    setEditingTerm(false);
+    load();
   }
 
   function openStudent(studentId) {
@@ -174,13 +200,43 @@ export default function Results() {
         </View>
       </View>
 
-      {terms.length > 1 && (
+      {terms.length > 0 && (
         <Segmented
           scroll
           options={termOptions}
           value={activeTerm ? activeTerm.id : null}
-          onChange={setViewTermId}
+          onChange={(id) => { setEditingTerm(false); setViewTermId(id); }}
         />
+      )}
+
+      {editingTerm ? (
+        <View style={styles.editCard}>
+          <AppInput
+            label="Term name"
+            icon="calendar-outline"
+            placeholder="e.g. Term 2"
+            value={termName}
+            onChangeText={setTermName}
+          />
+          <AppInput
+            label="Year"
+            icon="time-outline"
+            placeholder="e.g. 2026"
+            value={termYear}
+            onChangeText={setTermYear}
+            keyboardType="numeric"
+          />
+          <View style={styles.editRow}>
+            <View style={{ flex: 1 }}>
+              <AppButton variant="secondary" title="Cancel" onPress={() => setEditingTerm(false)} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <AppButton title="Save" icon="checkmark" onPress={saveTerm} />
+            </View>
+          </View>
+        </View>
+      ) : (
+        <AppButton variant="ghost" icon="create-outline" title="Edit term name or year" onPress={startEditTerm} />
       )}
 
       <View style={styles.statsRow}>

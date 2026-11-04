@@ -118,6 +118,15 @@ export default StyleSheet.create({
   reportMark: { width: 84 },
   reportGrade: { width: 120, paddingRight: spacing.sm },
 
+  editCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.lg,
+    gap: spacing.md,
+  },
+  editRow: { flexDirection: 'row', gap: spacing.md },
   note: { textAlign: 'center', color: colors.muted, fontSize: font.size.sm },
   pressed: { opacity: 0.85 },
 });

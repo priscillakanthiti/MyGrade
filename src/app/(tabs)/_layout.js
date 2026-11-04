@@ -1,5 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
+import useAutoBackup from '../../cloud/useAutoBackup';
 import { colors, font } from '../../theme';
 
 function tabIcon(active, inactive) {
@@ -9,6 +10,7 @@ function tabIcon(active, inactive) {
 }
 
 export default function TabsLayout() {
+  useAutoBackup();
   return (
     <Tabs
       screenOptions={{

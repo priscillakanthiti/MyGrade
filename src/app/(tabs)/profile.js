@@ -64,6 +64,20 @@ export default function Profile() {
           <Ionicons name="chevron-forward" size={20} color={colors.muted} />
         </Pressable>
 
+        <Pressable
+          style={({ pressed }) => [styles.menuRow, pressed && styles.pressed]}
+          onPress={() => router.push('/cloud-backup')}
+        >
+          <View style={styles.menuIcon}>
+            <Ionicons name="cloud-upload-outline" size={22} color={colors.primary} />
+          </View>
+          <View style={styles.menuTexts}>
+            <Text style={styles.menuTitle}>Cloud backup</Text>
+            <Text style={styles.menuSub}>Keep your data safe if the phone is lost</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color={colors.muted} />
+        </Pressable>
+
         <AppButton variant="dangerOutline" icon="log-out-outline" title="Log out" onPress={logout} />
       </Page>
     </View>

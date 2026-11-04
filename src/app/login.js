@@ -134,9 +134,14 @@ export default function Login() {
             />
 
             {isLogin && (
-              <Pressable onPress={() => router.push('/forgot-pin')}>
-                <Text style={styles.link}>Forgot PIN?</Text>
-              </Pressable>
+              <>
+                <Pressable onPress={() => router.push('/forgot-pin')}>
+                  <Text style={styles.link}>Forgot PIN?</Text>
+                </Pressable>
+                <Pressable onPress={() => router.push('/restore')}>
+                  <Text style={styles.link}>Restore from cloud backup</Text>
+                </Pressable>
+              </>
             )}
           </View>
 

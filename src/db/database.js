@@ -116,4 +116,16 @@ export async function migrateDb(db) {
     await db.execAsync("PRAGMA user_version = 4;");
     version = 4;
   }
+
+  // Version 5: student bio data
+  if (version < 5) {
+    const cols = ["admission_no", "date_of_birth", "guardian_name", "guardian_phone", "address"];
+    for (const col of cols) {
+      if (!(await hasColumn(db, "students", col))) {
+        await db.execAsync(`ALTER TABLE students ADD COLUMN ${col} TEXT;`);
+      }
+    }
+    await db.execAsync("PRAGMA user_version = 5;");
+    version = 5;
+  }
 }

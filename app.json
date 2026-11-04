@@ -11,7 +11,7 @@
       "icon": "./assets/expo.icon"
     },
     "android": {
-      "package": "com.scilla.mygrade",   
+      "package": "com.scilla.mygrade",
       "versionCode": 1,
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
@@ -35,12 +35,24 @@
           "imageWidth": 76
         }
       ],
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "Allow My Grade App to use the camera to scan marked scripts."
+        }
+      ],
       "expo-sqlite",
       "expo-secure-store",
       "expo-sharing"
     ],
     "experiments": {
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "0e8e3677-ba54-4949-9d63-3662103c5528"
+      }
     }
   }
 }

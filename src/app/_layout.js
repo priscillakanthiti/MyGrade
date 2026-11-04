@@ -25,17 +25,21 @@ function RootNav() {
         <Stack.Screen name="register-class" options={{ title: 'Register Class' }} />
         <Stack.Screen name="subjects" options={{ title: 'Subjects' }} />
         <Stack.Screen name="students" options={{ title: 'Students' }} />
+        <Stack.Screen name="student-profile" options={{ title: 'Student Profile' }} />
         <Stack.Screen name="marks" options={{ title: 'Enter Marks' }} />
+        <Stack.Screen name="script-marks" options={{ title: 'Add up script marks' }} />
         <Stack.Screen name="results" options={{ title: 'Results' }} />
         <Stack.Screen name="class-stats" options={{ title: 'Class Statistics' }} />
         <Stack.Screen name="student-report" options={{ title: 'Student Report' }} />
         <Stack.Screen name="new-term" options={{ title: 'Start New Term' }} />
         <Stack.Screen name="account-security" options={{ title: 'Security' }} />
+        <Stack.Screen name="cloud-backup" options={{ title: 'Cloud Backup' }} />
       </Stack.Protected>
       <Stack.Protected guard={!teacherId}>
         <Stack.Screen name="welcome" options={{ headerShown: false }} />
         <Stack.Screen name="login" options={{ headerShown: false }} />
         <Stack.Screen name="forgot-pin" options={{ title: 'Reset PIN' }} />
+        <Stack.Screen name="restore" options={{ title: 'Restore' }} />
       </Stack.Protected>
     </Stack>
   );

@@ -2,7 +2,7 @@ import { useCallback, useState } from 'react';
 import { Alert, FlatList, Pressable, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSQLiteContext } from 'expo-sqlite';
-import { useLocalSearchParams, useFocusEffect } from 'expo-router';
+import { useLocalSearchParams, useFocusEffect, useRouter } from 'expo-router';
 import AppButton from '../components/AppButton';
 import AppInput from '../components/AppInput';
 import Segmented from '../components/Segmented';
@@ -20,6 +20,7 @@ const GENDERS = [
 
 export default function Students() {
   const db = useSQLiteContext();
+  const router = useRouter();
   const { classId } = useLocalSearchParams();
   const cid = Number(classId);
 
@@ -92,6 +93,12 @@ export default function Students() {
               <Segmented options={GENDERS} value={gender} onChange={setGender} />
             </View>
             <AppButton title="Add Student" icon="person-add-outline" onPress={addStudent} />
+            <AppButton
+              variant="ghost"
+              title="Add with full bio data"
+              icon="document-text-outline"
+              onPress={() => router.push({ pathname: '/student-profile', params: { classId: String(cid) } })}
+            />
           </View>
 
           <View style={styles.statsRow}>
@@ -113,7 +120,15 @@ export default function Students() {
       renderItem={({ item, index }) => {
         const color = badgeColors[index % badgeColors.length];
         return (
-          <View style={[common.listItem, styles.card]}>
+          <Pressable
+            style={({ pressed }) => [common.listItem, styles.card, pressed && { opacity: 0.85 }]}
+            onPress={() =>
+              router.push({
+                pathname: '/student-profile',
+                params: { classId: String(cid), studentId: String(item.id) },
+              })
+            }
+          >
             <View style={[styles.avatar, { backgroundColor: color.bg }]}>
               <Text style={[styles.avatarText, { color: color.fg }]}>
                 {item.name.trim().charAt(0).toUpperCase()}
@@ -128,7 +143,7 @@ export default function Students() {
             <Pressable style={styles.deleteBtn} onPress={() => removeStudent(item)} hitSlop={8}>
               <Ionicons name="trash-outline" size={18} color={colors.danger} />
             </Pressable>
-          </View>
+          </Pressable>
         );
       }}
     />

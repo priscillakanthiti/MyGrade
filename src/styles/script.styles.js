@@ -1,0 +1,86 @@
+import { StyleSheet } from 'react-native';
+import { colors, spacing, radius, font, shadow } from '../theme';
+
+// Styles for: script-marks.js
+export default StyleSheet.create({
+  card: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.xl,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.lg,
+    gap: spacing.md,
+    ...shadow.card,
+  },
+  hero: { alignItems: 'center', gap: 4 },
+  heroName: {
+    fontSize: font.size.xl,
+    lineHeight: font.lineHeight.xl,
+    fontWeight: font.weight.bold,
+    color: colors.text,
+    textAlign: 'center',
+  },
+  heroSub: { fontSize: font.size.sm, color: colors.muted, textAlign: 'center' },
+  cardTitle: { fontSize: font.size.lg, fontWeight: font.weight.bold, color: colors.text },
+  hint: { fontSize: font.size.sm, lineHeight: font.lineHeight.sm, color: colors.muted },
+  buttonRow: { flexDirection: 'row', gap: spacing.md },
+  grow: { flex: 1 },
+
+  addRow: { flexDirection: 'row', alignItems: 'flex-end', gap: spacing.md },
+  addInput: { flex: 1 },
+
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  chip: {
+    minWidth: 64,
+    paddingVertical: 10,
+    paddingHorizontal: spacing.lg,
+    borderRadius: radius.md,
+    backgroundColor: colors.primarySoft,
+    borderWidth: 1.5,
+    borderColor: colors.primarySoft,
+    alignItems: 'center',
+  },
+  chipFlagged: { backgroundColor: colors.warningSoft, borderColor: '#E9C46A' },
+  chipSelected: { borderColor: colors.primary },
+  chipText: { fontSize: font.size.lg, fontWeight: font.weight.bold, color: colors.primaryDark },
+  chipTextFlagged: { color: colors.warning },
+  legend: { fontSize: font.size.xs, color: colors.muted },
+  editBar: { gap: spacing.sm },
+
+  totalCard: {
+    borderRadius: radius.xl,
+    padding: spacing.xl,
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: colors.primaryDark,
+  },
+  totalLabel: {
+    fontSize: font.size.xs,
+    fontWeight: font.weight.bold,
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+    color: colors.headerMuted,
+  },
+  totalValue: { fontSize: 48, lineHeight: 56, fontWeight: font.weight.bold, color: colors.white },
+  totalSub: { fontSize: font.size.md, color: colors.headerMuted },
+  totalPending: {
+    borderRadius: radius.xl,
+    padding: spacing.xl,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: colors.borderStrong,
+    backgroundColor: colors.surface,
+  },
+  totalPendingText: { fontSize: font.size.md, color: colors.muted, textAlign: 'center' },
+
+  rawBox: {
+    backgroundColor: colors.surfaceAlt,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.md,
+  },
+  rawText: { fontSize: font.size.sm, color: colors.textSecondary },
+  link: { textAlign: 'center', color: colors.primary, fontWeight: font.weight.semibold, fontSize: font.size.sm },
+});

@@ -1,0 +1,73 @@
+import { StyleSheet } from 'react-native';
+import { colors, spacing, radius, font, shadow } from '../theme';
+
+// Styles for: student-profile.js
+export default StyleSheet.create({
+  hero: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.xl,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.xl,
+    alignItems: 'center',
+    gap: 4,
+    ...shadow.card,
+  },
+  avatar: {
+    width: 84,
+    height: 84,
+    borderRadius: 42,
+    backgroundColor: colors.primaryDark,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.sm,
+  },
+  avatarText: { color: colors.white, fontSize: 36, fontWeight: font.weight.bold },
+  name: {
+    fontSize: font.size.xl,
+    lineHeight: font.lineHeight.xl,
+    fontWeight: font.weight.bold,
+    color: colors.text,
+    textAlign: 'center',
+  },
+  meta: { fontSize: font.size.sm, color: colors.muted, textAlign: 'center' },
+  card: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.xl,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.lg,
+    gap: spacing.md,
+    ...shadow.card,
+  },
+  cardTitle: { fontSize: font.size.lg, fontWeight: font.weight.bold, color: colors.text },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.md,
+    paddingVertical: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  rowLast: { borderBottomWidth: 0 },
+  rowIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: radius.sm,
+    backgroundColor: colors.primarySoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  rowBody: { flex: 1, gap: 2 },
+  rowLabel: {
+    fontSize: font.size.xs,
+    fontWeight: font.weight.bold,
+    color: colors.muted,
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
+  },
+  rowValue: { fontSize: font.size.md, lineHeight: font.lineHeight.md, color: colors.text },
+  rowEmpty: { color: colors.placeholder },
+  buttons: { flexDirection: 'row', gap: spacing.md },
+  grow: { flex: 1 },
+});

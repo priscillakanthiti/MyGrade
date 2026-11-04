@@ -125,8 +125,8 @@ export default function Home() {
                 onChange={(id) => setSelectedClassId(id)}
               />
               <View style={styles.statsRow}>
-                <StatTile value={studentCount} label="Students" tone="primary" />
-                <StatTile value={subjectCount} label="Subjects" tone="accent" />
+                <StatTile value={studentCount} label="Students" tone="primary" onPress={() => go('/students')} />
+                <StatTile value={subjectCount} label="Subjects" tone="accent" onPress={() => go('/subjects')} />
               </View>
             </View>
 
