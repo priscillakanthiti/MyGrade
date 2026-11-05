@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { Text, View } from 'react-native';
+import { Pressable, Text, TextInput, View } from 'react-native';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useLocalSearchParams, useFocusEffect, Stack } from 'expo-router';
 import { useAuth } from '../auth/AuthContext';
@@ -16,7 +16,16 @@ import GradeKey from '../components/GradeKey';
 import ProgressChart from '../components/ProgressChart';
 import TrendBadge from '../components/TrendBadge';
 import styles from '../styles/results.styles';
+import { colors } from '../theme';
 import statStyles from '../styles/stats.styles';
+
+const MAX_COMMENT = 500;
+const PHRASES = [
+  'Excellent performance. Keep up the good work.',
+  'Good effort. A little more practice will bring better results.',
+  'Satisfactory work, but more effort is needed.',
+  'Must work much harder and ask for help when needed.',
+];
 
 export default function StudentReport() {
   const db = useSQLiteContext();
@@ -28,6 +37,9 @@ export default function StudentReport() {
   const { schoolName, teacherName } = useAuth();
   const [data, setData] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [comment, setComment] = useState('');
+  const [focused, setFocused] = useState(false);
+  const [savedNote, setSavedNote] = useState('');
 
   const load = useCallback(async () => {
     const cls = await db.getFirstAsync('SELECT * FROM classes WHERE id = ?', cid);
@@ -52,6 +64,13 @@ export default function StudentReport() {
     }
     const progress = studentProgress(yearTerms, scoresByTerm, students, subjects, stid);
 
+    const saved = term
+      ? await db.getFirstAsync(
+          'SELECT comment FROM report_comments WHERE student_id = ? AND term_id = ?', stid, term.id
+        )
+      : null;
+    setComment(saved ? saved.comment : '');
+
     setData({
       cls, term, subjects, row, progress, trend: trendOf(progress),
       classSize: result.rows.length,
@@ -62,16 +81,44 @@ export default function StudentReport() {
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
+  // Saves the comment for this pupil and term (an empty comment removes it)
+  async function saveComment() {
+    if (!data || !data.term) return;
+    const text = comment.trim();
+    if (text === '') {
+      await db.runAsync(
+        'DELETE FROM report_comments WHERE student_id = ? AND term_id = ?', stid, data.term.id
+      );
+    } else {
+      await db.runAsync(
+        `INSERT INTO report_comments (student_id, term_id, comment) VALUES (?, ?, ?)
+         ON CONFLICT(student_id, term_id) DO UPDATE SET comment = excluded.comment`,
+        stid, data.term.id, text
+      );
+    }
+    setSavedNote(text === '' ? 'Comment cleared' : 'Comment saved');
+  }
+
+  function addPhrase(p) {
+    setComment((c) => {
+      const next = c.trim() === '' ? p : `${c.trim()} ${p}`;
+      return next.slice(0, MAX_COMMENT);
+    });
+    setSavedNote('');
+  }
+
   async function printStudent() {
     if (!data || !data.row) return;
-    await printReport(studentReportHtml({ ...data, schoolName, teacherName }));
+    await saveComment();
+    await printReport(studentReportHtml({ ...data, schoolName, teacherName, comment: comment.trim() }));
   }
 
   async function exportPdf() {
     if (!data || !data.row) return;
     setBusy(true);
+    await saveComment();
     await sharePdf(
-      studentReportHtml({ ...data, schoolName, teacherName }),
+      studentReportHtml({ ...data, schoolName, teacherName, comment: comment.trim() }),
       `${data.row.name}_report`,
       `${data.row.name} report`
     );
@@ -159,6 +206,36 @@ export default function StudentReport() {
           <ProgressChart points={progress} studentLabel={row.name.split(' ')[0]} />
         ) : null}
         <TrendBadge trend={trend} />
+      </View>
+
+      <View style={styles.commentCard}>
+        <View>
+          <Text style={styles.commentTitle}>Teacher's comment</Text>
+          <Text style={styles.commentHint}>
+            Written here, it is saved for this term and printed on the report.
+          </Text>
+        </View>
+        <TextInput
+          style={[styles.commentInput, focused && styles.commentFocused]}
+          multiline
+          maxLength={MAX_COMMENT}
+          placeholder="Write your comment about this pupil's performance..."
+          placeholderTextColor={colors.placeholder}
+          value={comment}
+          onChangeText={(t) => { setComment(t); setSavedNote(''); }}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
+        />
+        <Text style={styles.commentCount}>{comment.length} / {MAX_COMMENT}</Text>
+        <View style={styles.phraseRow}>
+          {PHRASES.map((p) => (
+            <Pressable key={p} style={styles.phrase} onPress={() => addPhrase(p)}>
+              <Text style={styles.phraseText}>{p}</Text>
+            </Pressable>
+          ))}
+        </View>
+        <AppButton variant="soft" icon="save-outline" title="Save comment" onPress={saveComment} />
+        {savedNote ? <Notice tone="success">{savedNote}</Notice> : null}
       </View>
 
       <GradeKey />

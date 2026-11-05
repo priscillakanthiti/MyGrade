@@ -107,15 +107,20 @@ export default function ScriptMarks() {
       added = [{ id: `r-${nextId.current++}`, text: '', flagged: false, uri: r.uri }];
       setNotice({
         tone: 'warning',
-        text: r.scannerNote || 'The mark on this page could not be read automatically. Look at the photo and type the mark in the box.',
+        text: (r.problem && r.problem.message)
+          || r.scannerNote
+          || 'The mark on this page could not be read automatically. Look at the photo and type the mark in the box.',
       });
     } else {
       added = r.marks.map((m) => ({
         id: `r-${nextId.current++}`, text: String(m.value), flagged: m.flagged, uri: r.uri,
       }));
+      const needsCheck = r.marks.some((m) => m.flagged);
       setNotice({
-        tone: 'info',
-        text: 'Page added. Check the figure against the photo, then add the next page.',
+        tone: needsCheck ? 'warning' : 'info',
+        text: needsCheck && r.note
+          ? r.note
+          : 'Page added. Check the figure against the photo, then add the next page.',
       });
     }
     changed([...rows, ...added]);

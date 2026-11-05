@@ -39,7 +39,14 @@ export async function buildSnapshot(db, teacherId) {
      WHERE c.teacher_id = ? ORDER BY sc.id`, teacherId
   );
 
-  return { version: SNAPSHOT_VERSION, teacher, classes, terms, subjects, students, scores };
+  const comments = await db.getAllAsync(
+    `SELECT rc.* FROM report_comments rc
+     JOIN students s ON s.id = rc.student_id
+     JOIN classes c ON c.id = s.class_id
+     WHERE c.teacher_id = ? ORDER BY rc.id`, teacherId
+  );
+
+  return { version: SNAPSHOT_VERSION, teacher, classes, terms, subjects, students, scores, comments };
 }
 
 export function summarize(snap) {
@@ -126,6 +133,15 @@ export async function restoreSnapshot(db, snap) {
       await db.runAsync(
         'INSERT INTO scores (student_id, subject_id, term_id, score) VALUES (?, ?, ?, ?)',
         studentMap[sc.student_id], subjectMap[sc.subject_id], termMap[sc.term_id], v(sc.score)
+      );
+    }
+
+    // Teacher comments (older backups do not have this list)
+    for (const cm of snap.comments || []) {
+      if (!studentMap[cm.student_id] || !termMap[cm.term_id]) continue;
+      await db.runAsync(
+        'INSERT INTO report_comments (student_id, term_id, comment) VALUES (?, ?, ?)',
+        studentMap[cm.student_id], termMap[cm.term_id], v(cm.comment) === null ? '' : cm.comment
       );
     }
   });

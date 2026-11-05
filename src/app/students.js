@@ -27,6 +27,7 @@ export default function Students() {
   const [students, setStudents] = useState([]);
   const [name, setName] = useState('');
   const [gender, setGender] = useState(null);
+  const [filter, setFilter] = useState('all'); // all | M | F
 
   const load = useCallback(async () => {
     setStudents(
@@ -69,13 +70,21 @@ export default function Students() {
   const males = students.filter((s) => s.gender === 'M').length;
   const females = students.filter((s) => s.gender === 'F').length;
 
+  const FILTERS = [
+    { label: `All (${students.length})`, value: 'all' },
+    { label: `Boys (${males})`, value: 'M' },
+    { label: `Girls (${females})`, value: 'F' },
+  ];
+  const shown = filter === 'all' ? students : students.filter((s) => s.gender === filter);
+  const filterWord = filter === 'M' ? 'boys' : 'girls';
+
   return (
     <FlatList
       style={common.flex}
       contentContainerStyle={common.listContent}
       keyboardShouldPersistTaps="handled"
       showsVerticalScrollIndicator={false}
-      data={students}
+      data={shown}
       keyExtractor={(s) => String(s.id)}
       ListHeaderComponent={
         <View style={[common.listItem, styles.header]}>
@@ -102,19 +111,29 @@ export default function Students() {
           </View>
 
           <View style={styles.statsRow}>
-            <StatTile value={students.length} label="Total" tone="primary" />
-            <StatTile value={males} label="Male" tone="accent" />
-            <StatTile value={females} label="Female" tone="success" />
+            <StatTile value={students.length} label="Total" tone="primary" onPress={() => setFilter('all')} />
+            <StatTile value={males} label="Male" tone="accent" onPress={() => setFilter('M')} />
+            <StatTile value={females} label="Female" tone="success" onPress={() => setFilter('F')} />
           </View>
 
-          <SectionTitle title="Class list" meta={`${students.length} enrolled`} />
+          <SectionTitle
+            title="Class list"
+            meta={filter === 'all' ? `${students.length} enrolled` : `${shown.length} ${filterWord}`}
+          />
+          <Segmented options={FILTERS} value={filter} onChange={setFilter} />
         </View>
       }
       ListEmptyComponent={
         <View style={common.listItem}>
-          <EmptyState icon="people-outline" title="No students yet">
-            Add the first student using the form above.
-          </EmptyState>
+          {students.length === 0 ? (
+            <EmptyState icon="people-outline" title="No students yet">
+              Add the first student using the form above.
+            </EmptyState>
+          ) : (
+            <EmptyState icon="people-outline" title={`No ${filterWord} in this class`}>
+              Choose All to see the whole class list.
+            </EmptyState>
+          )}
         </View>
       }
       renderItem={({ item, index }) => {

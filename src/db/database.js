@@ -128,4 +128,19 @@ export async function migrateDb(db) {
     await db.execAsync("PRAGMA user_version = 5;");
     version = 5;
   }
+
+  // Version 6: teacher's comment on each pupil's report, one per term
+  if (version < 6) {
+    await db.execAsync(`
+      CREATE TABLE IF NOT EXISTS report_comments (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        student_id INTEGER NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+        term_id INTEGER NOT NULL REFERENCES terms(id) ON DELETE CASCADE,
+        comment TEXT NOT NULL DEFAULT '',
+        UNIQUE(student_id, term_id)
+      );
+    `);
+    await db.execAsync("PRAGMA user_version = 6;");
+    version = 6;
+  }
 }
