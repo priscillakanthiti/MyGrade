@@ -2,14 +2,7 @@ import * as ImagePicker from 'expo-image-picker';
 import TextRecognition from '@react-native-ml-kit/text-recognition';
 import { extractMarks } from './parseMarks';
 
-// Takes a photo (or picks one) and reads the numbers on it.
-// Everything happens on the phone: no internet and no cloud service is used.
-//
-// source: 'camera' | 'library'
-// Returns one of:
-//   { cancelled: true }
-//   { error: 'message for the teacher' }
-//   { marks: [...], ignored: number, rawText: string }
+
 export async function scanMarks({ source, maxScore }) {
   try {
     const options = {
@@ -30,17 +23,20 @@ export async function scanMarks({ source, maxScore }) {
     }
     if (picked.canceled || !picked.assets || !picked.assets[0]) return { cancelled: true };
 
-    let ocr;
+    const uri = picked.assets[0].uri;
+
+    // The scanner tries to pre-fill the mark. If it cannot (or is not available),
+    // the photo is still returned so the teacher can read it and type the mark.
+    let ocr = null;
+    let scannerNote = '';
     try {
-      ocr = await TextRecognition.recognize(picked.assets[0].uri);
+      ocr = await TextRecognition.recognize(uri);
     } catch (e) {
-      return {
-        error: 'The scanner could not run on this phone. Scanning is not available in Expo Go, only in the installed app. You can still type the marks.',
-      };
+      scannerNote = 'The automatic reader is not available on this phone, so please type the mark shown in the photo.';
     }
 
-    const { marks, ignored } = extractMarks(ocr, { maxScore });
-    return { marks, ignored, rawText: (ocr && ocr.text) || '' };
+    const { marks, ignored } = ocr ? extractMarks(ocr, { maxScore }) : { marks: [], ignored: 0 };
+    return { uri, marks, ignored, scannerNote, rawText: (ocr && ocr.text) || '' };
   } catch (e) {
     return { error: 'Something went wrong while scanning. Please try again, or type the marks.' };
   }

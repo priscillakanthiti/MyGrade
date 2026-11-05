@@ -1,10 +1,4 @@
-// Turns raw OCR output into a list of candidate page marks.
-// Pure logic (no phone features), so it can be tested on a computer.
-//
-// The scanner is allowed to be wrong. Every number it returns is shown to the
-// teacher to check, and uncertain ones are flagged ("flagged: true").
 
-// Letters that handwriting OCR commonly returns instead of digits.
 const LOOKALIKE = {
   O: '0', o: '0', Q: '0',
   I: '1', l: '1', i: '1', '|': '1',

@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState } from 'react';
-import { Alert, Pressable, Text, View } from 'react-native';
+import { Alert, Image, Pressable, Text, TextInput, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useLocalSearchParams, useFocusEffect, useRouter, Stack } from 'expo-router';
 import Page from '../components/Page';
@@ -9,10 +10,21 @@ import Notice from '../components/Notice';
 import { scanMarks } from '../ocr/scanner';
 import { sumMarks } from '../ocr/parseMarks';
 import styles from '../styles/script.styles';
+import { colors } from '../theme';
 
 // Adds up the marks written on the pages of a pupil's script.
-// Flow: scan or type the page marks -> teacher checks every figure ->
-// teacher confirms -> the app adds them up -> teacher saves.
+// Flow: photograph each page (as many as needed) -> the teacher checks the mark
+// shown next to each photo -> confirms -> the app adds them up -> teacher saves.
+
+// Reads one text box: returns { empty }, { bad } or { value }
+function readBox(text, max) {
+  const t = String(text).trim().replace(',', '.');
+  if (t === '') return { empty: true };
+  const n = Number(t);
+  if (isNaN(n) || n < 0 || (max !== null && n > max)) return { bad: true };
+  return { value: n };
+}
+
 export default function ScriptMarks() {
   const db = useSQLiteContext();
   const router = useRouter();
@@ -26,15 +38,12 @@ export default function ScriptMarks() {
   const [term, setTerm] = useState(null);
   const [existing, setExisting] = useState(null);
 
-  const [items, setItems] = useState([]);       // [{ id, value, flagged }]
+  const [rows, setRows] = useState([]);          // [{ id, text, flagged, uri }]
   const [input, setInput] = useState('');
   const [inputError, setInputError] = useState('');
-  const [editingId, setEditingId] = useState(null);
   const [confirmed, setConfirmed] = useState(false);
   const [scanning, setScanning] = useState(false);
-  const [notice, setNotice] = useState(null);   // { tone, text }
-  const [rawText, setRawText] = useState('');
-  const [showRaw, setShowRaw] = useState(false);
+  const [notice, setNotice] = useState(null);    // { tone, text }
   const nextId = useRef(1);
 
   const load = useCallback(async () => {
@@ -55,52 +64,32 @@ export default function ScriptMarks() {
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
   const max = subject ? subject.max_score : null;
-  const total = sumMarks(items.map((i) => i.value));
+  const reads = rows.map((r) => readBox(r.text, max));
+  const allValid = rows.length > 0 && reads.every((r) => r.value !== undefined);
+  const total = sumMarks(reads.filter((r) => r.value !== undefined).map((r) => r.value));
   const percent = max ? (total / max) * 100 : null;
   const over = max !== null && total > max;
 
   function changed(next) {
-    setItems(next);
+    setRows(next);
     setConfirmed(false); // any change means the teacher must confirm again
   }
 
-  function parseInput() {
-    const n = Number(String(input).trim().replace(',', '.'));
-    if (input.trim() === '' || isNaN(n) || n < 0) return { error: 'Enter a mark such as 8 or 7.5.' };
-    if (max !== null && n > max) return { error: `A page mark cannot be more than ${max}.` };
-    return { value: n };
+  function setText(id, text) {
+    changed(rows.map((r) => (r.id === id ? { ...r, text, flagged: false } : r)));
   }
 
-  function addMark() {
-    const p = parseInput();
-    if (p.error) { setInputError(p.error); return; }
+  function removeRow(id) {
+    changed(rows.filter((r) => r.id !== id));
+  }
+
+  function addTyped() {
+    const r = readBox(input, max);
+    if (r.empty) { setInputError('Enter a mark such as 8 or 7.5.'); return; }
+    if (r.bad) { setInputError(`A page mark must be a number from 0 to ${max}.`); return; }
     setInputError('');
-    changed([...items, { id: `m-${nextId.current++}`, value: p.value, flagged: false }]);
+    changed([...rows, { id: `r-${nextId.current++}`, text: String(r.value), flagged: false, uri: null }]);
     setInput('');
-  }
-
-  function selectChip(chip) {
-    setEditingId(chip.id);
-    setInput(String(chip.value));
-    setInputError('');
-  }
-
-  function updateMark() {
-    const p = parseInput();
-    if (p.error) { setInputError(p.error); return; }
-    changed(items.map((i) => (i.id === editingId ? { ...i, value: p.value, flagged: false } : i)));
-    cancelEdit();
-  }
-
-  function deleteMark() {
-    changed(items.filter((i) => i.id !== editingId));
-    cancelEdit();
-  }
-
-  function cancelEdit() {
-    setEditingId(null);
-    setInput('');
-    setInputError('');
   }
 
   async function scan(source) {
@@ -112,23 +101,24 @@ export default function ScriptMarks() {
     if (r.cancelled) return;
     if (r.error) { setNotice({ tone: 'danger', text: r.error }); return; }
 
-    setRawText(r.rawText);
+    let added;
     if (r.marks.length === 0) {
+      // Nothing read: keep the photo and let the teacher type the mark
+      added = [{ id: `r-${nextId.current++}`, text: '', flagged: false, uri: r.uri }];
       setNotice({
         tone: 'warning',
-        text: 'No marks were found. Crop tightly around the marks, keep the photo steady and well lit, or type the marks instead.',
+        text: r.scannerNote || 'The mark on this page could not be read automatically. Look at the photo and type the mark in the box.',
       });
-      return;
+    } else {
+      added = r.marks.map((m) => ({
+        id: `r-${nextId.current++}`, text: String(m.value), flagged: m.flagged, uri: r.uri,
+      }));
+      setNotice({
+        tone: 'info',
+        text: 'Page added. Check the figure against the photo, then add the next page.',
+      });
     }
-    const added = r.marks.map((m) => ({ id: `m-${nextId.current++}`, value: m.value, flagged: m.flagged }));
-    changed([...items, ...added]);
-    const flaggedCount = added.filter((a) => a.flagged).length;
-    setNotice({
-      tone: 'info',
-      text: `Found ${added.length} number${added.length > 1 ? 's' : ''}${
-        flaggedCount ? `, ${flaggedCount} marked in amber that need a closer look` : ''
-      }. Check every figure against the paper before confirming.`,
-    });
+    changed([...rows, ...added]);
   }
 
   async function save() {
@@ -142,15 +132,15 @@ export default function ScriptMarks() {
        ON CONFLICT(student_id, subject_id, term_id) DO UPDATE SET score = excluded.score`,
       stid, sid, term.id, total
     );
-    Alert.alert('Saved', `${student ? student.name : 'Student'}: ${total} out of ${max} saved for ${subject ? subject.name : ''}.`, [
+    Alert.alert('Saved', `${student ? student.name : 'Student'}: ${total} out of ${max} saved for ${subject.name}.`, [
       { text: 'OK', onPress: () => router.back() },
     ]);
   }
 
   function clearAll() {
-    Alert.alert('Clear all marks?', 'This removes every page mark entered on this screen.', [
+    Alert.alert('Clear all pages?', 'This removes every page mark entered on this screen.', [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Clear', style: 'destructive', onPress: () => { changed([]); cancelEdit(); setNotice(null); } },
+      { text: 'Clear', style: 'destructive', onPress: () => { changed([]); setNotice(null); } },
     ]);
   }
 
@@ -171,95 +161,93 @@ export default function ScriptMarks() {
       </View>
 
       <View style={styles.card}>
-        <Text style={styles.cardTitle}>1. Scan the marks on a page</Text>
+        <Text style={styles.cardTitle}>1. Photograph the pages</Text>
         <Text style={styles.hint}>
-          Photograph one page at a time and crop tightly around the mark written at the top or edge. Scanning works on the phone, with no internet.
+          Take one photo per page, as many pages as the script has, then check them below. Crop tightly around the mark. The app tries to read each mark, and you always check it.
         </Text>
         <View style={styles.buttonRow}>
           <View style={styles.grow}>
-            <AppButton icon="camera-outline" title="Camera" onPress={() => scan('camera')} loading={scanning} />
+            <AppButton icon="camera-outline" title="Add page" onPress={() => scan('camera')} loading={scanning} />
           </View>
           <View style={styles.grow}>
-            <AppButton variant="soft" icon="images-outline" title="Photo" onPress={() => scan('library')} loading={scanning} />
+            <AppButton variant="soft" icon="images-outline" title="From gallery" onPress={() => scan('library')} loading={scanning} />
           </View>
         </View>
         {notice ? <Notice tone={notice.tone}>{notice.text}</Notice> : null}
-        {rawText ? (
-          <>
-            <Pressable onPress={() => setShowRaw(!showRaw)}>
-              <Text style={styles.link}>{showRaw ? 'Hide' : 'Show'} what the scanner read</Text>
-            </Pressable>
-            {showRaw ? (
-              <View style={styles.rawBox}><Text style={styles.rawText}>{rawText}</Text></View>
-            ) : null}
-          </>
-        ) : null}
       </View>
 
       <View style={styles.card}>
-        <Text style={styles.cardTitle}>2. Check and correct the figures</Text>
+        <Text style={styles.cardTitle}>2. Check each page mark</Text>
+
+        {rows.length === 0 ? (
+          <Text style={styles.hint}>No pages yet. Add a page photo above, or type a mark below.</Text>
+        ) : (
+          rows.map((r, i) => {
+            const rd = reads[i];
+            return (
+              <View
+                key={r.id}
+                style={[styles.pageRow, r.flagged && styles.pageRowFlagged, rd.bad && styles.pageRowBad]}
+              >
+                {r.uri ? (
+                  <Image source={{ uri: r.uri }} style={styles.thumb} resizeMode="cover" />
+                ) : (
+                  <View style={styles.thumbEmpty}>
+                    <Ionicons name="create-outline" size={26} color={colors.primary} />
+                  </View>
+                )}
+                <View style={styles.pageBody}>
+                  <Text style={styles.pageLabel}>
+                    Page {i + 1}{r.flagged ? '  |  check this one' : ''}{rd.bad ? '  |  not valid' : ''}
+                  </Text>
+                  <TextInput
+                    style={styles.pageInput}
+                    value={r.text}
+                    onChangeText={(t) => setText(r.id, t)}
+                    keyboardType="decimal-pad"
+                    placeholder="Type mark"
+                    placeholderTextColor={colors.placeholder}
+                  />
+                </View>
+                <Pressable style={styles.deleteBtn} onPress={() => removeRow(r.id)} hitSlop={8}>
+                  <Ionicons name="trash-outline" size={18} color={colors.danger} />
+                </Pressable>
+              </View>
+            );
+          })
+        )}
+
         <View style={styles.addRow}>
           <AppInput
             containerStyle={styles.addInput}
-            label={editingId ? 'Change this mark' : 'Type a page mark'}
+            label="Or type a page mark"
             icon="create-outline"
             placeholder="e.g. 15"
             keyboardType="decimal-pad"
             value={input}
             onChangeText={(t) => { setInput(t); setInputError(''); }}
-            onSubmitEditing={editingId ? updateMark : addMark}
+            onSubmitEditing={addTyped}
             error={inputError}
           />
-          {!editingId ? (
-            <View style={{ width: 96 }}>
-              <AppButton icon="add" title="Add" onPress={addMark} />
-            </View>
-          ) : null}
+          <View style={{ width: 96 }}>
+            <AppButton icon="add" title="Add" onPress={addTyped} />
+          </View>
         </View>
 
-        {editingId ? (
-          <View style={styles.editBar}>
-            <AppButton icon="checkmark" title="Update this mark" onPress={updateMark} />
-            <View style={styles.buttonRow}>
-              <View style={styles.grow}><AppButton variant="dangerOutline" title="Delete" onPress={deleteMark} /></View>
-              <View style={styles.grow}><AppButton variant="secondary" title="Cancel" onPress={cancelEdit} /></View>
-            </View>
-          </View>
+        {rows.length > 0 ? (
+          <AppButton variant="ghost" size="sm" title="Clear all pages" onPress={clearAll} />
         ) : null}
-
-        {items.length === 0 ? (
-          <Text style={styles.hint}>No marks yet. Scan a page or type the marks above.</Text>
-        ) : (
-          <>
-            <View style={styles.chips}>
-              {items.map((i) => (
-                <Pressable
-                  key={i.id}
-                  onPress={() => selectChip(i)}
-                  style={[styles.chip, i.flagged && styles.chipFlagged, editingId === i.id && styles.chipSelected]}
-                >
-                  <Text style={[styles.chipText, i.flagged && styles.chipTextFlagged]}>{i.value}</Text>
-                </Pressable>
-              ))}
-            </View>
-            <Text style={styles.legend}>
-              Tap a mark to change or delete it. Amber marks were uncertain, so check them closely.
-            </Text>
-            <View style={styles.buttonRow}>
-              <View style={styles.grow}>
-                <AppButton variant="ghost" size="sm" title="Clear all" onPress={clearAll} />
-              </View>
-            </View>
-          </>
-        )}
 
         <AppButton
           variant="success"
           icon="checkmark-done-outline"
           title={confirmed ? 'Figures confirmed' : 'These figures are correct'}
-          disabled={items.length === 0 || confirmed}
+          disabled={!allValid || confirmed}
           onPress={() => setConfirmed(true)}
         />
+        {rows.length > 0 && !allValid ? (
+          <Text style={styles.hint}>Every page needs a valid mark before you can confirm.</Text>
+        ) : null}
       </View>
 
       {confirmed ? (
@@ -287,12 +275,7 @@ export default function ScriptMarks() {
         </Notice>
       ) : null}
 
-      <AppButton
-        icon="save-outline"
-        title="Save total"
-        disabled={!confirmed || over}
-        onPress={save}
-      />
+      <AppButton icon="save-outline" title="Save total" disabled={!confirmed || over} onPress={save} />
     </Page>
   );
 }
