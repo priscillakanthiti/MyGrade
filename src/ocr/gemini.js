@@ -10,6 +10,15 @@ const messages = {
   unsupported_image: 'Choose a JPEG, PNG, WebP or HEIC picture.',
   rate_limited: 'The picture reader is busy. Please try again shortly, or type the mark.',
   reader_timeout: 'The picture reader took too long. Please try again, or type the mark.',
+  reader_key_invalid: 'Picture reading needs its access key updated. You can type the mark below.',
+  reader_key_restricted: 'Picture reading is blocked by its access settings. You can type the mark below.',
+  reader_api_disabled: 'The picture-reading service has not been enabled. You can type the mark below.',
+  reader_billing_required: 'The picture-reading service needs its billing settings updated. You can type the mark below.',
+  reader_project_invalid: 'Picture reading needs its project settings updated. You can type the mark below.',
+  reader_access_denied: 'The picture-reading service has denied access. You can type the mark below.',
+  reader_model_unavailable: 'The configured picture reader is unavailable. You can type the mark below.',
+  reader_request_invalid: 'The picture reader could not process this photo. Try another photo or type the mark below.',
+  reader_unavailable: 'The picture-reading service is temporarily busy. Try again shortly or type the mark below.',
 };
 
 // Gemini's key exists only in the Supabase function. No native OCR is required.
@@ -17,7 +26,7 @@ export async function readWithGemini(base64, { mimeType, maxScore }) {
   if (!pictureSupabase) return { unavailable: true, message: messages.not_configured };
   if (!base64) return { unavailable: true, message: 'The picture could not be prepared. Choose another photo or type the mark.' };
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 35000);
+  const timer = setTimeout(() => controller.abort(), 55000);
   try {
     await ensurePictureSession();
     const { data, error } = await pictureSupabase.functions.invoke('read-mark', {

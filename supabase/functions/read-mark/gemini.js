@@ -10,6 +10,36 @@ const responseJsonSchema = {
   additionalProperties: false,
 };
 
+// Return fixed diagnostic codes only. Google's raw errors can contain project
+// identifiers or credentials and must never be forwarded to app users.
+async function providerFailure(response) {
+  let detail;
+  try { detail = (await response.json())?.error; } catch { /* non-JSON error */ }
+  const reasons = (Array.isArray(detail?.details) ? detail.details : []).map((item) => item?.reason);
+  const known = {
+    API_KEY_INVALID: 'reader_key_invalid',
+    API_KEY_EXPIRED: 'reader_key_invalid',
+    API_KEY_SERVICE_BLOCKED: 'reader_key_restricted',
+    API_KEY_HTTP_REFERRER_BLOCKED: 'reader_key_restricted',
+    API_KEY_IP_ADDRESS_BLOCKED: 'reader_key_restricted',
+    SERVICE_DISABLED: 'reader_api_disabled',
+    BILLING_DISABLED: 'reader_billing_required',
+    CONSUMER_INVALID: 'reader_project_invalid',
+  };
+  const reason = reasons.find((value) => Object.hasOwn(known, value));
+  let error = reason ? known[reason] : 'reader_failed';
+  if (!reason) {
+    if (response.status === 429) error = 'rate_limited';
+    else if (response.status === 401) error = 'reader_key_invalid';
+    else if (response.status === 403) error = 'reader_access_denied';
+    else if (response.status === 404) error = 'reader_model_unavailable';
+    else if (response.status === 400) error = 'reader_request_invalid';
+    else if ([500, 502, 503, 504].includes(response.status)) error = 'reader_unavailable';
+  }
+  return { error, status: response.status === 429 ? 429 : 502,
+    providerStatus: response.status, ...(reason ? { providerReason: reason } : {}) };
+}
+
 export function validateMark(mark, maxScore) {
   if (!mark || typeof mark !== 'object' || typeof mark.raw !== 'string' || mark.raw.length > 200) return null;
   if (!['read', 'unclear', 'multiple', 'no_mark'].includes(mark.status)) return null;
@@ -24,9 +54,11 @@ export function validateMark(mark, maxScore) {
 
 export async function readGeminiMark({ apiKey, model, image, mimeType, maxScore }, fetcher = fetch) {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 25000);
+  const timer = setTimeout(() => controller.abort(), 45000);
   try {
-    const response = await fetcher(
+    let response;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      response = await fetcher(
       `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
       {
         method: 'POST', signal: controller.signal,
@@ -46,11 +78,24 @@ export async function readGeminiMark({ apiKey, model, image, mimeType, maxScore 
             { inlineData: { mimeType, data: image } },
             { text: `Read the awarded mark. The allowed range is 0 to ${maxScore}. A mark outside that range must be unclear.` },
           ] }],
-          generationConfig: { responseMimeType: 'application/json', responseJsonSchema },
+          generationConfig: {
+            responseMimeType: 'application/json', responseJsonSchema,
+            // Transcribing a single numeral does not need the default thinking
+            // level. Keep the response short, while allowing enough token budget
+            // for Gemini's internal thinking and the JSON result.
+            thinkingConfig: { thinkingLevel: 'low' },
+            maxOutputTokens: 1024,
+          },
         }),
       }
-    );
-    if (!response.ok) return { error: response.status === 429 ? 'rate_limited' : 'reader_failed', status: response.status === 429 ? 429 : 502 };
+      );
+      if (response.ok || ![500, 502, 503, 504].includes(response.status) || attempt === 1) break;
+      await response.body?.cancel();
+      // One short backoff, within the overall deadline. Never retry bad keys,
+      // invalid requests or exhausted quota, and never retry a numeric result.
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    }
+    if (!response.ok) return await providerFailure(response);
     const out = await response.json();
     const candidate = out?.candidates?.[0];
     if (candidate?.finishReason !== 'STOP') return { error: 'invalid_response', status: 502 };

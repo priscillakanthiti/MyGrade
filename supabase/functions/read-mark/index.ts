@@ -26,7 +26,7 @@ Deno.serve(async (req) => {
   } catch {
     return json({ error: 'authentication_unavailable' }, 503);
   }
-  const apiKey = Deno.env.get('GEMINI_API_KEY');
+  const apiKey = Deno.env.get('GEMINI_API_KEY')?.trim();
   if (!apiKey) return json({ error: 'not_configured' }, 503);
   let body;
   try { body = await req.json(); }
@@ -42,9 +42,12 @@ Deno.serve(async (req) => {
     return json({ error: 'bad_request' }, 400);
   }
   const result = await readGeminiMark({
-    apiKey, model: Deno.env.get('GEMINI_MODEL') || 'gemini-3.8-flash',
+    apiKey, model: Deno.env.get('GEMINI_MODEL')?.trim() || 'gemini-3.5-flash-lite',
     image, mimeType, maxScore,
   });
-  if (result.error) return json({ error: result.error }, result.status);
+  if (result.error) return json({ error: result.error,
+    ...('providerStatus' in result ? { providerStatus: result.providerStatus } : {}),
+    ...('providerReason' in result ? { providerReason: result.providerReason } : {}),
+  }, result.status);
   return json({ mark: result.mark });
 });

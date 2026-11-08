@@ -55,7 +55,9 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "lint": "expo lint"
+    "lint": "expo lint",
+    "test:reader": "node tests/mark-reader.test.mjs && node tests/capture-marks.test.mjs",
+    "test:reader:live": "node scripts/test-live-reader.mjs"
   },
   "private": true
 }

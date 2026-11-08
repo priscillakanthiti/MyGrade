@@ -30,7 +30,10 @@ supabase functions deploy read-mark --project-ref eetvfgpbvczsqztabocp --no-veri
 
 The function verifies bearer tokens itself with `auth.getUser`; the public app
 key alone cannot authorize a picture-reading request. The default model is
-`gemini-3.8-flash`. Set the optional `GEMINI_MODEL` server secret to change it.
+`gemini-3.5-flash-lite`, using low thinking for short numeric transcriptions.
+Set the optional `GEMINI_MODEL` server secret to change it. Temporary upstream
+server errors receive one retry after a short backoff, within a 45-second total
+deadline. Bad credentials, invalid requests and exhausted quota are not retried.
 
 The new app expects the new `{ mark: { status, value, raw } }` response. Deploy the
 function before testing the updated app. Older app versions expect `words` and
@@ -43,6 +46,18 @@ node tests/mark-reader.test.mjs
 node tests/capture-marks.test.mjs
 ```
 
+For an explicit end-to-end check against the configured production project:
+
+```sh
+npm run test:reader:live
+```
+
+This creates an anonymous test session and makes five Gemini calls with synthetic
+images: `7.5`, `0`, `.5`, `8/10`, and two separate marks. It checks the numeric
+results, a combined total of 16, and refusal to choose between multiple marks.
+It signs out after testing; the anonymous Auth user remains. No student data is
+sent and no scores are written. This is not a handwriting accuracy benchmark.
+
 Then sign in with a local teacher PIN (leave Cloud Backup unlinked) and capture a clear single mark. Check
 zero, `.5`, `7.5`, `100`, `8/10`, unclear handwriting, and several awarded marks.
 Check offline behavior too: the photo should remain available for manual entry.
@@ -54,4 +69,4 @@ Mock tests verify the request contract and failure paths; they do not measure
 Gemini's handwriting accuracy. Test representative real scripts before use.
 
 API reference: https://ai.google.dev/api/generate-content
-Model: https://aistudio.google.com/docs/models/gemini-3.8-flash
+Model: https://ai.google.dev/gemini-api/docs/models/gemini-3.5-flash-lite

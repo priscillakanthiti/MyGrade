@@ -56,6 +56,8 @@ test('provider request includes image MIME, schema and secret header', async () 
     assert.deepEqual(body.contents[0].parts[0].inlineData, { mimeType: 'image/png', data: params.image });
     assert.equal(body.generationConfig.responseMimeType, 'application/json');
     assert.ok(body.generationConfig.responseJsonSchema.required.includes('value'));
+    assert.equal(body.generationConfig.thinkingConfig.thinkingLevel, 'low');
+    assert.equal(body.generationConfig.maxOutputTokens, 1024);
     assert.ok(options.signal instanceof AbortSignal);
     return reply({ status: 'read', value: 12, raw: '12' });
   });
@@ -243,4 +245,46 @@ test('one failed page retains its photo and does not stop reading later pages', 
   assert.match(failed.scannerNote, /Type its mark/);
   const next = await readMarkPage({ uri: 'next.jpg', base64: 'good' }, 100);
   assert.equal(next.marks[0].value, 12);
+});
+
+test('provider failures distinguish setup errors without exposing upstream messages or credentials', async () => {
+  for (const [status, reason, expected] of [
+    [400, 'API_KEY_INVALID', 'reader_key_invalid'],
+    [403, 'SERVICE_DISABLED', 'reader_api_disabled'],
+    [403, 'API_KEY_SERVICE_BLOCKED', 'reader_key_restricted'],
+    [403, 'BILLING_DISABLED', 'reader_billing_required'],
+    [404, null, 'reader_model_unavailable'],
+    [400, null, 'reader_request_invalid'],
+    [403, null, 'reader_access_denied'],
+    [429, null, 'rate_limited'],
+    [503, 'UNKNOWN_REASON_WITH_SECRET', 'reader_unavailable'],
+  ]) {
+    const result = await readGeminiMark(params, async () => ({ ok: false, status, json: async () => ({
+      error: { message: 'private-key-and-project-details', details: reason ? [{ reason }] : [] },
+    }) }));
+    assert.equal(result.error, expected);
+    assert.equal(result.providerStatus, status);
+    assert.equal(result.status, status === 429 ? 429 : 502);
+    assert.ok(!JSON.stringify(result).includes('private-key'));
+    assert.ok(!JSON.stringify(result).includes('UNKNOWN_REASON_WITH_SECRET'));
+  }
+});
+
+test('retries a temporary provider outage once and returns the real mark', async () => {
+  let calls = 0;
+  const result = await readGeminiMark(params, async () => {
+    calls++;
+    return calls === 1 ? { ok: false, status: 503 } : reply({ status: 'read', raw: '7.5', value: 7.5 });
+  });
+  assert.equal(calls, 2);
+  assert.equal(result.mark.value, 7.5);
+});
+
+test('retries are bounded and never repeat permanent errors or quota failures', async () => {
+  for (const status of [400, 401, 403, 404, 429, 503]) {
+    let calls = 0;
+    const result = await readGeminiMark(params, async () => { calls++; return { ok: false, status }; });
+    assert.equal(calls, status === 503 ? 2 : 1);
+    assert.ok(result.error);
+  }
 });
