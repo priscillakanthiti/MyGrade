@@ -1,4 +1,31 @@
-# Welcome to your Expo app 👋
+# MyGrade
+
+School marks, student reports, and picture capture with on-device reading and a Gemini fallback.
+See [picture reader setup](supabase/functions/read-mark/README.md) for the required
+Supabase secret and function deployment. Run its checks with
+`node tests/mark-reader.test.mjs` and `node tests/capture-marks.test.mjs`.
+
+Capture marks from the scan button beside the intended student. The screen shows
+the student name and ID, class, subject and term. Every photo in that session is
+assigned to that student; switching students starts a fresh session. The reader
+does not identify a student from the paper. Class ownership and the current term
+are checked again when saving the combined total.
+
+Crop around one awarded page total. Photos are queued without Base64 data,
+resized to at most 1280 pixels on the long edge, then read with ML Kit on the
+phone when its native module is available. Only an isolated number/fraction or
+an explicit total label is accepted locally; ambiguous output falls back to
+Gemini. All suggestions still require teacher confirmation. Two pages can be
+processed concurrently, and a failed page can be entered manually.
+
+On-device reading needs an Android/iOS development or production build containing
+`@react-native-ml-kit/text-recognition`. Expo Go and web use Gemini instead.
+Rebuild the native app after installing `expo-image-manipulator`. Local reading
+avoids a cloud request but handwriting accuracy and actual latency must be
+measured on representative scripts and target phones; no speed guarantee has
+been established by the mock tests.
+
+## Expo development
 
 This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
 

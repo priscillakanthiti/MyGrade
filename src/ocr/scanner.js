@@ -1,30 +1,18 @@
 import * as ImagePicker from 'expo-image-picker';
-import TextRecognition from '@react-native-ml-kit/text-recognition';
-import { readWithCloud } from './cloudVision';
-import { readMark, wordsFromMlKit } from './markReader';
+import { readWithGemini } from './gemini';
+import { geminiMarkResult } from './geminiResult';
+import { readOnDevice } from './local';
+import { prepareMarkImage } from './image';
 
-// Takes or picks ONE photo of a page mark and tries to read it.
-//
-// Order of attempts:
-//   1. Google Cloud Vision (only if online and signed in to cloud backup)
-//   2. The reader on the phone (ML Kit), which works offline
-//   3. If neither can read it, the photo is still returned so the teacher types the mark
-//
-// Returns one of:
-//   { cancelled: true }
-//   { error }                                  real failure (camera permission, picker crash)
-//   { uri, marks: [{ value, flagged, raw }], note, via }   one mark was read
-//   { uri, marks: [], problem: { code, message }, via }    photo reached a reader, but no usable mark
-//   { uri, marks: [], scannerNote }            no reader could run, so please type the mark
-export async function scanMarks({ source, maxScore }) {
+// Capture first so several pages can be collected before reading their marks.
+export async function captureMarkPage(source) {
   try {
     const options = {
       mediaTypes: ['images'],
-      allowsEditing: true, // lets the teacher crop tightly around the mark
-      quality: 0.7,        // keeps the upload small on mobile data
-      base64: true,        // needed by the cloud reader
+      allowsEditing: true,
+      quality: 0.85,
+      base64: false,
     };
-
     let picked;
     if (source === 'camera') {
       const perm = await ImagePicker.requestCameraPermissionsAsync();
@@ -35,53 +23,58 @@ export async function scanMarks({ source, maxScore }) {
     } else {
       picked = await ImagePicker.launchImageLibraryAsync(options);
     }
-    if (picked.canceled || !picked.assets || !picked.assets[0]) return { cancelled: true };
+    if (picked.canceled || !picked.assets?.[0]) return { cancelled: true };
+    return { asset: picked.assets[0] };
+  } catch {
+    return { error: 'The photo could not be taken or selected. Please try again.' };
+  }
+}
 
-    const asset = picked.assets[0];
-    const uri = asset.uri;
-
-    // 1. Cloud reader. Silent if it cannot be used.
-    let words = null;
-    let via = null;
-    const cloud = await readWithCloud(asset.base64);
-    if (cloud.words) {
-      words = cloud.words;
-      via = 'cloud';
+// Keep the photo even if reading fails, so its mark can be entered manually.
+export async function readMarkPage(asset, maxScore) {
+  const uri = asset.uri;
+  let prepared;
+  try {
+    prepared = await prepareMarkImage(asset);
+    const local = await readOnDevice(prepared.uri, maxScore);
+    if (local.ok) {
+      return { uri, via: 'device', note: local.note,
+        marks: [{ value: local.value, flagged: true, raw: local.raw }] };
     }
-
-    // 2. Reader on the phone
-    if (!words) {
-      try {
-        const ocr = await TextRecognition.recognize(uri);
-        words = wordsFromMlKit(ocr);
-        via = 'phone';
-      } catch (e) {
-        words = null;
-      }
-    }
-
-    // 3. No reader could run at all. Not an error: the teacher types the mark.
-    if (!words) {
+    const cloud = await readWithGemini(await prepared.encode(), {
+      mimeType: 'image/jpeg',
+      maxScore,
+    });
+    if (cloud.unavailable) {
       return {
         uri,
         marks: [],
         via: null,
-        scannerNote: 'The automatic reader is not available right now, so please type the mark shown in the photo.',
+        scannerNote: cloud.message,
       };
     }
 
-    const result = readMark(words, { maxScore });
+    const result = geminiMarkResult(cloud.mark, maxScore);
     if (!result.ok) {
-      return { uri, marks: [], via, problem: { code: result.code, message: result.message } };
+      return { uri, marks: [], via: 'gemini', problem: { code: result.code, message: result.message } };
     }
 
     return {
       uri,
-      via,
+      via: 'gemini',
       note: result.note,
       marks: [{ value: result.value, flagged: result.flagged, raw: result.raw }],
     };
   } catch (e) {
-    return { error: 'Something went wrong while scanning. Please try again, or type the marks.' };
+    return { uri, marks: [], scannerNote: 'The page could not be read. Type its mark or take another photo.' };
+  } finally {
+    prepared?.release();
   }
+}
+
+// Single-page helper for callers that want to capture and read immediately.
+export async function scanMarks({ source, maxScore }) {
+  const captured = await captureMarkPage(source);
+  if (!captured.asset) return captured;
+  return readMarkPage(captured.asset, maxScore);
 }

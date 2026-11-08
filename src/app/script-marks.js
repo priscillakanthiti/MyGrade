@@ -1,19 +1,22 @@
-import { useCallback, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Alert, Image, Pressable, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSQLiteContext } from 'expo-sqlite';
-import { useLocalSearchParams, useFocusEffect, useRouter, Stack } from 'expo-router';
+import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import Page from '../components/Page';
 import AppButton from '../components/AppButton';
 import AppInput from '../components/AppInput';
 import Notice from '../components/Notice';
-import { scanMarks } from '../ocr/scanner';
+import { captureMarkPage, readMarkPage } from '../ocr/scanner';
 import { sumMarks } from '../ocr/parseMarks';
+import { readPageBatch } from '../ocr/batch';
+import { loadScriptAssignment, saveScriptTotal } from '../ocr/assignment';
+import { useAuth } from '../auth/AuthContext';
 import styles from '../styles/script.styles';
 import { colors } from '../theme';
 
 // Adds up the marks written on the pages of a pupil's script.
-// Flow: photograph each page (as many as needed) -> the teacher checks the mark
+// Flow: collect page photos -> read their marks -> the teacher checks each mark
 // shown next to each photo -> confirms -> the app adds them up -> teacher saves.
 
 // Reads one text box: returns { empty }, { bad } or { value }
@@ -21,51 +24,71 @@ function readBox(text, max) {
   const t = String(text).trim().replace(',', '.');
   if (t === '') return { empty: true };
   const n = Number(t);
-  if (isNaN(n) || n < 0 || (max !== null && n > max)) return { bad: true };
+  if (!Number.isFinite(n) || n < 0 || (max !== null && n > max)) return { bad: true };
   return { value: n };
 }
 
 export default function ScriptMarks() {
+  const { classId, studentId, subjectId } = useLocalSearchParams();
+  const { teacherId } = useAuth();
+  // A different student/subject/account always gets fresh photos and marks.
+  return <ScriptCapture key={`${teacherId}:${classId}:${studentId}:${subjectId}`}
+    cid={Number(classId)} stid={Number(studentId)} sid={Number(subjectId)} teacherId={teacherId} />;
+}
+
+function ScriptCapture({ cid, stid, sid, teacherId }) {
   const db = useSQLiteContext();
   const router = useRouter();
-  const { classId, studentId, subjectId } = useLocalSearchParams();
-  const cid = Number(classId);
-  const stid = Number(studentId);
-  const sid = Number(subjectId);
 
   const [student, setStudent] = useState(null);
   const [subject, setSubject] = useState(null);
   const [term, setTerm] = useState(null);
   const [existing, setExisting] = useState(null);
 
-  const [rows, setRows] = useState([]);          // [{ id, text, flagged, uri }]
+  const [rows, setRows] = useState([]);          // [{ id, text, flagged, uri, asset?, problem? }]
   const [input, setInput] = useState('');
   const [inputError, setInputError] = useState('');
   const [confirmed, setConfirmed] = useState(false);
   const [scanning, setScanning] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState(null);    // { tone, text }
   const nextId = useRef(1);
+  const busy = useRef(false);
+  const [reading, setReading] = useState(false);
+  const [readProgress, setReadProgress] = useState('');
+  const [assignment, setAssignment] = useState(null);
+  const [loadError, setLoadError] = useState('');
+  const active = useRef(true);
 
-  const load = useCallback(async () => {
-    setStudent(await db.getFirstAsync('SELECT * FROM students WHERE id = ?', stid));
-    setSubject(await db.getFirstAsync('SELECT * FROM subjects WHERE id = ?', sid));
-    const t = await db.getFirstAsync('SELECT * FROM terms WHERE class_id = ? AND is_current = 1', cid);
-    setTerm(t);
-    if (t) {
-      setExisting(
-        await db.getFirstAsync(
+  useEffect(() => {
+    active.current = true;
+    let cancelled = false;
+    async function load() {
+      try {
+        const selected = await loadScriptAssignment(db, { classId: cid, studentId: stid, subjectId: sid, teacherId });
+        const score = await db.getFirstAsync(
           'SELECT score FROM scores WHERE student_id = ? AND subject_id = ? AND term_id = ?',
-          stid, sid, t.id
-        )
-      );
+          stid, sid, selected.term.id
+        );
+        if (cancelled) return;
+        setAssignment(selected);
+        setStudent(selected.student);
+        setSubject(selected.subject);
+        setTerm(selected.term);
+        setExisting(score);
+      } catch (error) {
+        if (!cancelled) setLoadError(error.message || 'The student could not be loaded. Return to the class and try again.');
+      }
     }
-  }, [db, cid, stid, sid]);
-
-  useFocusEffect(useCallback(() => { load(); }, [load]));
+    load();
+    return () => { cancelled = true; active.current = false; };
+  }, [db, cid, stid, sid, teacherId]);
 
   const max = subject ? subject.max_score : null;
   const reads = rows.map((r) => readBox(r.text, max));
-  const allValid = rows.length > 0 && reads.every((r) => r.value !== undefined);
+  const pending = rows.filter((r) => r.asset);
+  const working = scanning || reading || saving;
+  const allValid = rows.length > 0 && pending.length === 0 && reads.every((r) => r.value !== undefined);
   const total = sumMarks(reads.filter((r) => r.value !== undefined).map((r) => r.value));
   const percent = max ? (total / max) * 100 : null;
   const over = max !== null && total > max;
@@ -76,79 +99,116 @@ export default function ScriptMarks() {
   }
 
   function setText(id, text) {
-    changed(rows.map((r) => (r.id === id ? { ...r, text, flagged: false } : r)));
+    changed((current) => current.map((r) => (r.id === id ? { ...r, text, flagged: false, asset: null, problem: null } : r)));
   }
 
   function removeRow(id) {
-    changed(rows.filter((r) => r.id !== id));
+    changed((current) => current.filter((r) => r.id !== id));
   }
 
   function addTyped() {
+    if (busy.current || working) return;
     const r = readBox(input, max);
     if (r.empty) { setInputError('Enter a mark such as 8 or 7.5.'); return; }
     if (r.bad) { setInputError(`A page mark must be a number from 0 to ${max}.`); return; }
     setInputError('');
-    changed([...rows, { id: `r-${nextId.current++}`, text: String(r.value), flagged: false, uri: null }]);
+    const row = { id: `r-${nextId.current++}`, text: String(r.value), flagged: false, uri: null };
+    changed((current) => [...current, row]);
     setInput('');
   }
 
   async function scan(source) {
+    if (busy.current || working) return;
+    busy.current = true;
     setNotice(null);
     setScanning(true);
-    const r = await scanMarks({ source, maxScore: max === null ? undefined : max });
-    setScanning(false);
-
-    if (r.cancelled) return;
-    if (r.error) { setNotice({ tone: 'danger', text: r.error }); return; }
-
-    let added;
-    if (r.marks.length === 0) {
-      // Nothing read: keep the photo and let the teacher type the mark
-      added = [{ id: `r-${nextId.current++}`, text: '', flagged: false, uri: r.uri }];
-      setNotice({
-        tone: 'warning',
-        text: (r.problem && r.problem.message)
-          || r.scannerNote
-          || 'The mark on this page could not be read automatically. Look at the photo and type the mark in the box.',
-      });
-    } else {
-      added = r.marks.map((m) => ({
-        id: `r-${nextId.current++}`, text: String(m.value), flagged: m.flagged, uri: r.uri,
-      }));
-      const needsCheck = r.marks.some((m) => m.flagged);
-      setNotice({
-        tone: needsCheck ? 'warning' : 'info',
-        text: needsCheck && r.note
-          ? r.note
-          : 'Page added. Check the figure against the photo, then add the next page.',
-      });
+    try {
+      const result = await captureMarkPage(source);
+      if (!active.current) return;
+      if (result.cancelled) return;
+      if (result.error) { setNotice({ tone: 'danger', text: result.error }); return; }
+      const row = {
+        id: `r-${nextId.current++}`, text: '', flagged: false,
+        uri: result.asset.uri, asset: result.asset,
+      };
+      changed((current) => [...current, row]);
+      setNotice({ tone: 'info', text: 'Page added. Take the next page photo, or read the page marks when you have finished.' });
+    } finally {
+      busy.current = false;
+      setScanning(false);
     }
-    changed([...rows, ...added]);
+  }
+
+  async function readPages() {
+    if (busy.current || working || pending.length === 0) return;
+    busy.current = true;
+    setReading(true);
+    setConfirmed(false);
+    setNotice(null);
+    let unread = 0;
+    try {
+      setReadProgress(`Read 0 of ${pending.length} pages…`);
+      await readPageBatch(pending, (page) => readMarkPage(page.asset, max), (page, result, completed) => {
+        setReadProgress(`Read ${completed} of ${pending.length} pages…`);
+        const mark = result.marks[0];
+        if (!mark) unread++;
+        changed((current) => current.map((r) => r.id === page.id ? {
+          ...r, asset: null, text: mark ? String(mark.value) : '',
+          flagged: Boolean(mark), via: result.via,
+          problem: mark ? null : (result.problem?.message || result.scannerNote),
+        } : r));
+      }, () => active.current);
+      if (!active.current) return;
+      setNotice({
+        tone: unread ? 'warning' : 'info',
+        text: unread
+          ? `${unread} page(s) could not be read. Type their marks, then check all pages before calculating the total.`
+          : 'Page marks are ready. Check each figure against its photo, then calculate the total.',
+      });
+    } finally {
+      busy.current = false;
+      setReading(false);
+      setReadProgress('');
+    }
   }
 
   async function save() {
-    if (!term || !subject) return;
+    if (busy.current || working || !confirmed || !allValid) return;
+    if (!term || !subject) {
+      setNotice({ tone: 'danger', text: 'A current term and subject are required before saving marks.' });
+      return;
+    }
     if (over) {
       Alert.alert('Total is too high', `The total (${total}) is more than the ${max} marks for ${subject.name}. Check the figures.`);
       return;
     }
-    await db.runAsync(
-      `INSERT INTO scores (student_id, subject_id, term_id, score) VALUES (?, ?, ?, ?)
-       ON CONFLICT(student_id, subject_id, term_id) DO UPDATE SET score = excluded.score`,
-      stid, sid, term.id, total
-    );
-    Alert.alert('Saved', `${student ? student.name : 'Student'}: ${total} out of ${max} saved for ${subject.name}.`, [
-      { text: 'OK', onPress: () => router.back() },
-    ]);
+    setSaving(true);
+    busy.current = true;
+    try {
+      await saveScriptTotal(db, assignment, total);
+      if (!active.current) return;
+      Alert.alert('Saved', `${student ? student.name : 'Student'}: ${total} out of ${max} saved for ${subject.name}.`, [
+        { text: 'OK', onPress: () => router.back() },
+      ]);
+    } catch (error) {
+      setNotice({ tone: 'danger', text: error.message || 'The mark could not be saved. Your page marks are still here; please try again.' });
+    } finally {
+      busy.current = false;
+      setSaving(false);
+    }
   }
 
   function clearAll() {
+    if (busy.current || working) return;
     Alert.alert('Clear all pages?', 'This removes every page mark entered on this screen.', [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Clear', style: 'destructive', onPress: () => { changed([]); setNotice(null); } },
     ]);
   }
 
+  if (loadError) {
+    return <Page><Notice tone="danger">{loadError}</Notice><AppButton title="Back to class" onPress={() => router.back()} /></Page>;
+  }
   if (!student || !subject) {
     return <Page><Text style={styles.hint}>Loading...</Text></Page>;
   }
@@ -159,6 +219,7 @@ export default function ScriptMarks() {
 
       <View style={styles.hero}>
         <Text style={styles.heroName}>{student.name}</Text>
+        <Text style={styles.heroSub}>{assignment.classroom.name}  |  Student #{student.id}</Text>
         <Text style={styles.heroSub}>
           {subject.name}  |  Out of {subject.max_score}
           {term ? `  |  ${term.name}` : ''}
@@ -168,16 +229,27 @@ export default function ScriptMarks() {
       <View style={styles.card}>
         <Text style={styles.cardTitle}>1. Photograph the pages</Text>
         <Text style={styles.hint}>
-          Take one photo per page, as many pages as the script has, then check them below. Crop tightly around the mark. The app tries to read each mark, and you always check it.
+          These pages will be saved for {student.name}. Crop each photo around one awarded page total. Add all pages, then tap Read page marks. The app tries reading on your phone first; if needed, photos are sent to Google using internet. Check every suggested mark.
         </Text>
         <View style={styles.buttonRow}>
           <View style={styles.grow}>
-            <AppButton icon="camera-outline" title="Add page" onPress={() => scan('camera')} loading={scanning} />
+            <AppButton icon="camera-outline" title={rows.length ? 'Add next page' : 'Take page photo'} disabled={working} onPress={() => scan('camera')} loading={scanning} />
           </View>
           <View style={styles.grow}>
-            <AppButton variant="soft" icon="images-outline" title="From gallery" onPress={() => scan('library')} loading={scanning} />
+            <AppButton variant="soft" icon="images-outline" title="From gallery" disabled={working} onPress={() => scan('library')} loading={scanning} />
           </View>
         </View>
+        <Text style={styles.hint}>{rows.length} page{rows.length === 1 ? '' : 's'} added</Text>
+        {pending.length > 0 || reading ? (
+          <AppButton
+            icon="scan-outline"
+            title={`Read page marks (${pending.length})`}
+            onPress={readPages}
+            loading={reading}
+            disabled={working}
+          />
+        ) : null}
+        {reading ? <Text style={styles.hint} accessibilityLiveRegion="polite">{readProgress}</Text> : null}
         {notice ? <Notice tone={notice.tone}>{notice.text}</Notice> : null}
       </View>
 
@@ -203,18 +275,22 @@ export default function ScriptMarks() {
                 )}
                 <View style={styles.pageBody}>
                   <Text style={styles.pageLabel}>
-                    Page {i + 1}{r.flagged ? '  |  check this one' : ''}{rd.bad ? '  |  not valid' : ''}
+                    Page {i + 1}{r.flagged ? '  |  check this one' : ''}{rd.bad ? '  |  not valid' : ''}{r.asset ? '  |  awaiting reading' : ''}
                   </Text>
+                  {r.via ? <Text style={styles.hint}>{r.via === 'device' ? 'Read on phone' : 'Read with Gemini'}</Text> : null}
                   <TextInput
                     style={styles.pageInput}
                     value={r.text}
                     onChangeText={(t) => setText(r.id, t)}
+                    editable={!working}
+                    accessibilityLabel={`Mark for page ${i + 1}`}
                     keyboardType="decimal-pad"
                     placeholder="Type mark"
                     placeholderTextColor={colors.placeholder}
                   />
+                  {r.problem ? <Text style={styles.hint}>{r.problem}</Text> : null}
                 </View>
-                <Pressable style={styles.deleteBtn} onPress={() => removeRow(r.id)} hitSlop={8}>
+                <Pressable disabled={working} accessibilityLabel={`Remove page ${i + 1}`} style={styles.deleteBtn} onPress={() => removeRow(r.id)} hitSlop={8}>
                   <Ionicons name="trash-outline" size={18} color={colors.danger} />
                 </Pressable>
               </View>
@@ -229,25 +305,26 @@ export default function ScriptMarks() {
             icon="create-outline"
             placeholder="e.g. 15"
             keyboardType="decimal-pad"
+            editable={!working}
             value={input}
             onChangeText={(t) => { setInput(t); setInputError(''); }}
             onSubmitEditing={addTyped}
             error={inputError}
           />
           <View style={{ width: 96 }}>
-            <AppButton icon="add" title="Add" onPress={addTyped} />
+            <AppButton icon="add" title="Add" disabled={working} onPress={addTyped} />
           </View>
         </View>
 
         {rows.length > 0 ? (
-          <AppButton variant="ghost" size="sm" title="Clear all pages" onPress={clearAll} />
+          <AppButton variant="ghost" size="sm" title="Clear all pages" disabled={working} onPress={clearAll} />
         ) : null}
 
         <AppButton
           variant="success"
           icon="checkmark-done-outline"
-          title={confirmed ? 'Figures confirmed' : 'These figures are correct'}
-          disabled={!allValid || confirmed}
+          title={confirmed ? 'Total calculated' : 'Confirm marks & get total'}
+          disabled={!allValid || confirmed || working}
           onPress={() => setConfirmed(true)}
         />
         {rows.length > 0 && !allValid ? (
@@ -257,10 +334,10 @@ export default function ScriptMarks() {
 
       {confirmed ? (
         <View style={styles.totalCard}>
-          <Text style={styles.totalLabel}>Total for {subject.name}</Text>
+          <Text style={styles.totalLabel}>{student.name} · {subject.name}</Text>
           <Text style={styles.totalValue}>{total}</Text>
           <Text style={styles.totalSub}>
-            out of {max}  |  {percent.toFixed(1)}%
+            {rows.length} page{rows.length === 1 ? '' : 's'}  |  out of {max}  |  {percent === null ? '—' : percent.toFixed(1)}%
           </Text>
         </View>
       ) : (
@@ -280,7 +357,7 @@ export default function ScriptMarks() {
         </Notice>
       ) : null}
 
-      <AppButton icon="save-outline" title="Save total" disabled={!confirmed || over} onPress={save} />
+      <AppButton icon="save-outline" title={`Save total for ${student.name}`} loading={saving} disabled={!confirmed || !allValid || over || working || !term} onPress={save} />
     </Page>
   );
 }
