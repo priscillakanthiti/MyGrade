@@ -2,7 +2,8 @@
   "expo": {
     "name": "MyGrade",
     "slug": "MyGrade",
-    "version": "1.0.0",
+    "owner": "isaacmonawe",
+    "version": "1.0.4",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "mygrade",
@@ -51,7 +52,7 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "0e8e3677-ba54-4949-9d63-3662103c5528"
+        "projectId": "8b9b9bec-cb36-4273-8b13-8fab5c390ea9"
       }
     }
   }

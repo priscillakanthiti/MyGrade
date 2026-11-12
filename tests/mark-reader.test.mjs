@@ -13,13 +13,22 @@ async function load(path, replacements = []) {
   for (const [from, to] of replacements) source = source.replace(from, to);
   return import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}`);
 }
-const { readGeminiMark, validateMark } = await load('../supabase/functions/read-mark/gemini.js');
+const { readGeminiMark, validateMark, validateVisionMark } = await load('../supabase/functions/read-mark/gemini.js');
 const { geminiMarkResult } = await load('../src/ocr/geminiResult.js');
 const { createPictureSession } = await load('../src/ocr/session.js');
 const params = { apiKey: 'test-key', model: 'test-model', image: 'base64-image', mimeType: 'image/png', maxScore: 100 };
 const reply = (mark, finishReason = 'STOP') => ({ ok: true, json: async () => ({
   candidates: [{ finishReason, content: { parts: [{ text: JSON.stringify(mark) }] } }],
 }) });
+
+test('separate circled marks cannot be concatenated into a page total', () => {
+  assert.deepEqual(validateVisionMark({ status: 'read', raw: '80', value: 80,
+    regions: [{ raw: '8', value: 8 }, { raw: '0', value: 0 }] }, 100),
+  { status: 'multiple', raw: '', value: null });
+  assert.deepEqual(validateVisionMark({ status: 'read', raw: '80', value: 80,
+    regions: [{ raw: '80', value: 80 }] }, 100), { status: 'read', raw: '80', value: 80 });
+  assert.equal(validateVisionMark({ status: 'read', raw: '8', value: 8, regions: [] }, 100), null);
+});
 
 test('valid marks retain decimals, zero, 100 and fraction numerator', async () => {
   for (const [raw, value] of [['0', 0], ['.5', 0.5], ['7,5', 7.5], ['100', 100], ['8 / 10', 8]]) {
@@ -56,11 +65,19 @@ test('provider request includes image MIME, schema and secret header', async () 
     assert.deepEqual(body.contents[0].parts[0].inlineData, { mimeType: 'image/png', data: params.image });
     assert.equal(body.generationConfig.responseMimeType, 'application/json');
     assert.ok(body.generationConfig.responseJsonSchema.required.includes('value'));
-    assert.equal(body.generationConfig.thinkingConfig.thinkingLevel, 'low');
-    assert.equal(body.generationConfig.maxOutputTokens, 1024);
+    assert.equal(body.generationConfig.thinkingConfig.thinkingLevel, 'medium');
+    assert.equal(body.generationConfig.maxOutputTokens, 2048);
     assert.ok(options.signal instanceof AbortSignal);
     return reply({ status: 'read', value: 12, raw: '12' });
   });
+});
+
+test('experimental region output is opt-in and retains the existing app response contract', async () => {
+  const result = await readGeminiMark({ ...params, detectRegions: true }, async (url, options) => {
+    assert.ok(JSON.parse(options.body).generationConfig.responseJsonSchema.required.includes('regions'));
+    return reply({ status: 'read', raw: '80', value: 80, regions: [{ raw: '8', value: 8 }, { raw: '0', value: 0 }] });
+  });
+  assert.deepEqual(result.mark, { status: 'multiple', raw: '', value: null });
 });
 
 test('quota, network, malformed, blocked and truncated responses fail safely', async () => {
@@ -72,6 +89,51 @@ test('quota, network, malformed, blocked and truncated responses fail safely', a
     async () => ({ ok: true, json: async () => ({ candidates: [{ finishReason: 'STOP', content: { parts: [{ text: '{bad' }] } }] }) }),
   ];
   for (const provider of providers) assert.ok((await readGeminiMark(params, provider)).error);
+});
+
+test('unclear handwriting receives a stronger independent visual review', async () => {
+  const calls = [];
+  const result = await readGeminiMark(params, async (url, options) => {
+    const body = JSON.parse(options.body);
+    calls.push({ url, body });
+    return calls.length === 1
+      ? reply({ status: 'unclear', raw: '', value: null })
+      : reply({ status: 'read', raw: '8', value: 8 });
+  });
+  assert.equal(result.mark.value, 8);
+  assert.equal(calls.length, 2);
+  assert.ok(calls[1].url.endsWith('/gemini-3.5-flash:generateContent'));
+  assert.deepEqual(calls[1].body.contents[0].parts[0].inlineData, calls[0].body.contents[0].parts[0].inlineData);
+  assert.equal(calls[1].body.generationConfig.thinkingConfig.thinkingLevel, 'medium');
+  assert.equal(calls[1].body.generationConfig.maxOutputTokens, 3072);
+});
+
+test('handwriting review preserves uncertainty and cannot override validation', async () => {
+  const unclear = { status: 'unclear', raw: '', value: null };
+  for (const second of [
+    async () => reply(unclear),
+    async () => reply({ status: 'read', raw: '8', value: 80 }),
+    async () => ({ ok: false, status: 403 }),
+    async () => { throw Error('network unavailable'); },
+  ]) {
+    let calls = 0;
+    const result = await readGeminiMark(params, async (...args) => ++calls === 1 ? reply(unclear) : second(...args));
+    assert.deepEqual(result.mark, unclear);
+    assert.equal(calls, 2);
+  }
+});
+
+test('clear, absent and multiple marks do not trigger handwriting review', async () => {
+  for (const mark of [
+    { status: 'read', raw: '7.5', value: 7.5 },
+    { status: 'multiple', raw: '', value: null },
+    { status: 'no_mark', raw: '', value: null },
+  ]) {
+    let calls = 0;
+    const result = await readGeminiMark(params, async () => { calls++; return reply(mark); });
+    assert.equal(calls, 1);
+    assert.deepEqual(result.mark, mark);
+  }
 });
 
 async function cloudClient(mock) {
@@ -278,6 +340,41 @@ test('retries a temporary provider outage once and returns the real mark', async
   });
   assert.equal(calls, 2);
   assert.equal(result.mark.value, 7.5);
+});
+
+test('quota diagnostics expose only the time window and retry duration', async () => {
+  const result = await readGeminiMark(params, async () => ({ ok: false, status: 429, json: async () => ({ error: {
+    message: 'private project and key', details: [
+      { violations: [{ quotaId: 'GenerateRequestsPerDayPerProjectPerModel-FreeTier', quotaDimensions: { project: 'private-project' } }] },
+      { retryDelay: '32.7s' },
+    ],
+  } }) }));
+  assert.equal(result.rateLimitWindow, 'day');
+  assert.equal(result.retryAfterSeconds, 33);
+  assert.ok(!JSON.stringify(result).includes('private'));
+});
+
+test('a stalled provider request is aborted and retried within the scan deadline', async () => {
+  let calls = 0;
+  const result = await readGeminiMark({ ...params, requestTimeoutMs: 5 }, async (url, options) => {
+    if (++calls === 1) return new Promise((resolve, reject) => {
+      options.signal.addEventListener('abort', () => reject(new DOMException('timed out', 'AbortError')), { once: true });
+    });
+    return reply({ status: 'read', raw: '.5', value: .5 });
+  });
+  assert.equal(calls, 2);
+  assert.equal(result.mark.value, .5);
+});
+
+test('the total scan deadline stops a stalled request without starting another retry', async () => {
+  let calls = 0;
+  const result = await readGeminiMark({ ...params, totalTimeoutMs: 10, requestTimeoutMs: 1000 }, async (url, options) => {
+    calls++;
+    return new Promise((resolve, reject) => options.signal.addEventListener('abort',
+      () => reject(new DOMException('deadline', 'AbortError')), { once: true }));
+  });
+  assert.equal(calls, 1);
+  assert.equal(result.error, 'reader_timeout');
 });
 
 test('retries are bounded and never repeat permanent errors or quota failures', async () => {

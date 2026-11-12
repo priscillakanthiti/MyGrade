@@ -7,6 +7,7 @@ import Page from '../components/Page';
 import AppButton from '../components/AppButton';
 import AppInput from '../components/AppInput';
 import Notice from '../components/Notice';
+import MarkPhotoEditor from '../components/MarkPhotoEditor';
 import { captureMarkPage, readMarkPage } from '../ocr/scanner';
 import { sumMarks } from '../ocr/parseMarks';
 import { readPageBatch } from '../ocr/batch';
@@ -50,6 +51,7 @@ function ScriptCapture({ cid, stid, sid, teacherId }) {
   const [inputError, setInputError] = useState('');
   const [confirmed, setConfirmed] = useState(false);
   const [scanning, setScanning] = useState(false);
+  const [cropAsset, setCropAsset] = useState(null);
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState(null);    // { tone, text }
   const nextId = useRef(1);
@@ -87,7 +89,7 @@ function ScriptCapture({ cid, stid, sid, teacherId }) {
   const max = subject ? subject.max_score : null;
   const reads = rows.map((r) => readBox(r.text, max));
   const pending = rows.filter((r) => r.asset);
-  const working = scanning || reading || saving;
+  const working = scanning || reading || saving || Boolean(cropAsset);
   const allValid = rows.length > 0 && pending.length === 0 && reads.every((r) => r.value !== undefined);
   const total = sumMarks(reads.filter((r) => r.value !== undefined).map((r) => r.value));
   const percent = max ? (total / max) * 100 : null;
@@ -127,16 +129,19 @@ function ScriptCapture({ cid, stid, sid, teacherId }) {
       if (!active.current) return;
       if (result.cancelled) return;
       if (result.error) { setNotice({ tone: 'danger', text: result.error }); return; }
-      const row = {
-        id: `r-${nextId.current++}`, text: '', flagged: false,
-        uri: result.asset.uri, asset: result.asset,
-      };
-      changed((current) => [...current, row]);
-      setNotice({ tone: 'info', text: 'Page added. Take the next page photo, or read the page marks when you have finished.' });
+      setCropAsset(result.asset);
     } finally {
       busy.current = false;
       setScanning(false);
     }
+  }
+
+  function addCroppedPage(asset) {
+    setCropAsset(null);
+    changed(current => [...current, {
+      id: `r-${nextId.current++}`, text: '', flagged: false, uri: asset.uri, asset,
+    }]);
+    setNotice({ tone: 'info', text: 'Page added. Take the next page photo, or read the page marks when you have finished.' });
   }
 
   async function readPages() {
@@ -216,6 +221,7 @@ function ScriptCapture({ cid, stid, sid, teacherId }) {
   return (
     <Page>
       <Stack.Screen options={{ title: 'Add up script marks' }} />
+      {cropAsset ? <MarkPhotoEditor asset={cropAsset} onCancel={() => setCropAsset(null)} onConfirm={addCroppedPage} /> : null}
 
       <View style={styles.hero}>
         <Text style={styles.heroName}>{student.name}</Text>
@@ -229,7 +235,7 @@ function ScriptCapture({ cid, stid, sid, teacherId }) {
       <View style={styles.card}>
         <Text style={styles.cardTitle}>1. Photograph the pages</Text>
         <Text style={styles.hint}>
-          These pages will be saved for {student.name}. Crop each photo around one awarded page total. Add all pages, then tap Read page marks. The app tries reading on your phone first; if needed, photos are sent to Google using internet. Check every suggested mark.
+          These pages will be saved for {student.name}. Crop around one awarded page total, including its circle if present. Lined paper and handwritten marks are supported. Add all pages, then tap Read page marks. Photos are sent to Google using internet. Check every suggested mark.
         </Text>
         <View style={styles.buttonRow}>
           <View style={styles.grow}>

@@ -12,7 +12,11 @@ async function loadSource(path) {
 const { SUPABASE_URL, SUPABASE_ANON_KEY } = await loadSource('../src/cloud/config.js');
 const { sumMarks } = await loadSource('../src/ocr/parseMarks.js');
 const endpoint = `${SUPABASE_URL}/functions/v1/read-mark`;
+const paperMode = process.argv.includes('--paper');
+const paced = process.argv.includes('--paced');
+const only = process.argv.find(value => value.startsWith('--case='))?.slice(7);
 let failures = 0;
+const readingDurations = [];
 async function check(label, options, expectedStatus, validate = () => {}) {
   const start = performance.now();
   let result;
@@ -24,6 +28,7 @@ async function check(label, options, expectedStatus, validate = () => {}) {
     result = { status: response.status, body };
     assert.equal(response.status, expectedStatus);
     validate(body);
+    if (body?.mark) readingDurations.push(Math.round(performance.now() - start));
     console.log(JSON.stringify({ label, passed: true, ...result, durationMs: Math.round(performance.now() - start) }));
     return body;
   } catch (error) {
@@ -53,19 +58,32 @@ if (error || !data.session) {
     await check('Invalid image rejected', post({ image: 'invalid', mimeType: 'image/png', maxScore: 100 }), 400);
     await check('Unsupported image type rejected', post({ image: await fixture('decimal'), mimeType: 'text/plain', maxScore: 100 }), 400);
     const values = [];
-    for (const [name, expected] of [['decimal', 7.5], ['zero', 0], ['leading-decimal', .5], ['fraction', 8]]) {
+    const allExamples = paperMode
+      ? [['circled-eight-lined', 8], ['circled-eight-lined-rotated', 8], ['circled-zero-lined', 0], ['circled-decimal-lined', 7.5]]
+      : [['decimal', 7.5], ['zero', 0], ['leading-decimal', .5], ['fraction', 8]];
+    const examples = only ? allExamples.filter(([name]) => name === only) : allExamples;
+    assert.ok(examples.length, 'Unknown test case');
+    for (const [name, expected] of examples) {
+      if (paced) await new Promise(resolve => setTimeout(resolve, 15000));
       const result = await check(`Read ${name}: ${expected}`, post({ image: await fixture(name), mimeType: 'image/png', maxScore: 100 }), 200, (body) => {
         assert.equal(body?.mark?.status, 'read');
         assert.equal(body.mark.value, expected);
       });
       if (result?.mark?.status === 'read') values.push(result.mark.value);
     }
-    await check('Multiple marks require manual review', post({ image: await fixture('multiple'), mimeType: 'image/png', maxScore: 100 }), 200, (body) => {
+    if (!only && paced) await new Promise(resolve => setTimeout(resolve, 15000));
+    if (!only) await check('Multiple marks require manual review', post({ image: await fixture(paperMode ? 'circled-multiple-lined' : 'multiple'), mimeType: 'image/png', maxScore: 100 }), 200, (body) => {
       assert.equal(body?.mark?.status, 'multiple');
       assert.equal(body.mark.value, null);
     });
-    if (values.length === 4 && sumMarks(values) === 16) {
-      console.log(JSON.stringify({ label: 'Combined page total', passed: true, total: 16 }));
+    if (!only && paced) await new Promise(resolve => setTimeout(resolve, 15000));
+    if (paperMode && !only) await check('Paper lines alone are not marks', post({ image: await fixture('lined-no-mark'), mimeType: 'image/png', maxScore: 100 }), 200, (body) => {
+      assert.equal(body?.mark?.status, 'no_mark');
+      assert.equal(body.mark.value, null);
+    });
+    const expectedTotal = sumMarks(examples.map(([, value]) => value));
+    if (values.length === examples.length && sumMarks(values) === expectedTotal) {
+      console.log(JSON.stringify({ label: 'Combined page total', passed: true, total: expectedTotal }));
     } else {
       failures++;
       console.log(JSON.stringify({ label: 'Combined page total', passed: false, values }));
@@ -74,5 +92,10 @@ if (error || !data.session) {
     await client.auth.signOut();
   }
   console.log(JSON.stringify({ failures }));
+  if (readingDurations.length) {
+    const sorted = [...readingDurations].sort((a, b) => a - b);
+    console.log(JSON.stringify({ label: 'Successful read latency', samples: sorted.length,
+      medianMs: sorted[Math.floor(sorted.length / 2)], minMs: sorted[0], maxMs: sorted.at(-1) }));
+  }
   if (failures) process.exitCode = 1;
 }

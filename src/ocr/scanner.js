@@ -1,7 +1,6 @@
 import * as ImagePicker from 'expo-image-picker';
 import { readWithGemini } from './gemini';
 import { geminiMarkResult } from './geminiResult';
-import { readOnDevice } from './local';
 import { prepareMarkImage } from './image';
 
 // Capture first so several pages can be collected before reading their marks.
@@ -9,7 +8,9 @@ export async function captureMarkPage(source) {
   try {
     const options = {
       mediaTypes: ['images'],
-      allowsEditing: true,
+      // Normalize orientation and crop in our editor instead of the Android
+      // camera/crop activity, whose output can rotate on some devices.
+      allowsEditing: false,
       quality: 0.85,
       base64: false,
     };
@@ -36,11 +37,8 @@ export async function readMarkPage(asset, maxScore) {
   let prepared;
   try {
     prepared = await prepareMarkImage(asset);
-    const local = await readOnDevice(prepared.uri, maxScore);
-    if (local.ok) {
-      return { uri, via: 'device', note: local.note,
-        marks: [{ value: local.value, flagged: true, raw: local.raw }] };
-    }
+    // Plain text OCR cannot verify whether loops belong to the handwriting,
+    // an enclosing circle, or the paper ruling. Read the actual image instead.
     const cloud = await readWithGemini(await prepared.encode(), {
       mimeType: 'image/jpeg',
       maxScore,

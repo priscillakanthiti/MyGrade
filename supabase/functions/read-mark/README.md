@@ -1,10 +1,11 @@
 # Gemini picture reader
 
-When on-device reading is unavailable or ambiguous, the app sends one resized,
-cropped photo to the `read-mark` Supabase Edge Function.
+The app sends each resized, cropped mark photo to the `read-mark` Supabase Edge
+Function. Plain text OCR is not accepted as the final reading because it cannot
+verify handwriting against an enclosing circle or paper ruling.
 The function verifies the Supabase user, calls Gemini with a JSON response schema,
 and validates the transcription and score before returning a suggestion. The
-teacher must confirm the suggestion before saving. This fallback requires internet. The
+teacher must confirm the suggestion before saving. Picture reading requires internet. The
 picture-reading path works in Expo Go without ML Kit or a Cloud Backup account.
 
 On first scan, the app automatically creates an anonymous Supabase session for
@@ -30,10 +31,20 @@ supabase functions deploy read-mark --project-ref eetvfgpbvczsqztabocp --no-veri
 
 The function verifies bearer tokens itself with `auth.getUser`; the public app
 key alone cannot authorize a picture-reading request. The default model is
-`gemini-3.5-flash-lite`, using low thinking for short numeric transcriptions.
+`gemini-3.5-flash`, using medium thinking to interpret teacher handwriting.
 Set the optional `GEMINI_MODEL` server secret to change it. Temporary upstream
-server errors receive one retry after a short backoff, within a 45-second total
+server errors receive one retry after a short backoff, within a 25-second total
 deadline. Bad credentials, invalid requests and exhausted quota are not retried.
+An upstream request that stalls for 10 seconds is aborted and retried once,
+within that same overall deadline.
+
+The reader treats circled scores, loose teacher handwriting, and rotated photos
+as normal inputs. An `unclear` result receives one independent review using
+`gemini-3.5-flash` with medium thinking. Set `GEMINI_HANDWRITING_MODEL` to change
+that review model. Both passes share the same 25-second deadline. Valid marks,
+multiple marks, and missing marks do not receive a second interpretation. If the
+review fails or still cannot resolve the handwriting, manual entry remains
+available. Every suggested value still requires teacher confirmation.
 
 The new app expects the new `{ mark: { status, value, raw } }` response. Deploy the
 function before testing the updated app. Older app versions expect `words` and

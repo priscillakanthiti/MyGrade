@@ -2,6 +2,23 @@ import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import { File } from 'expo-file-system';
 import { Platform } from 'react-native';
 
+// Decode EXIF orientation into pixels once. Later crops use these same upright
+// pixels for their preview and saved result, without copying camera metadata.
+export async function editMarkImage(asset, { rotation = 0, crop } = {}) {
+  const context = ImageManipulator.manipulate(asset.uri);
+  let image;
+  try {
+    if (rotation) context.rotate(rotation);
+    if (crop) context.crop(crop);
+    image = await context.renderAsync();
+    const saved = await image.saveAsync({ format: SaveFormat.JPEG, compress: 1 });
+    return { uri: saved.uri, width: image.width, height: image.height };
+  } finally {
+    image?.release();
+    context.release();
+  }
+}
+
 // Resize only the cropped mark, preserving aspect ratio and small decimal dots.
 // Encode for upload only if the on-device reader needs a cloud fallback.
 export async function prepareMarkImage(asset) {

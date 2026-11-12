@@ -42,12 +42,15 @@ Deno.serve(async (req) => {
     return json({ error: 'bad_request' }, 400);
   }
   const result = await readGeminiMark({
-    apiKey, model: Deno.env.get('GEMINI_MODEL')?.trim() || 'gemini-3.5-flash-lite',
+    apiKey, model: Deno.env.get('GEMINI_MODEL')?.trim() || 'gemini-3.5-flash',
+    fallbackModel: Deno.env.get('GEMINI_HANDWRITING_MODEL')?.trim() || 'gemini-3.5-flash',
     image, mimeType, maxScore,
   });
   if (result.error) return json({ error: result.error,
     ...('providerStatus' in result ? { providerStatus: result.providerStatus } : {}),
     ...('providerReason' in result ? { providerReason: result.providerReason } : {}),
+    ...('rateLimitWindow' in result ? { rateLimitWindow: result.rateLimitWindow } : {}),
+    ...('retryAfterSeconds' in result ? { retryAfterSeconds: result.retryAfterSeconds } : {}),
   }, result.status);
   return json({ mark: result.mark });
 });

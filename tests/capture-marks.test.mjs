@@ -15,7 +15,50 @@ const { localMarkResult } = await load('../src/ocr/local.js', [
   ["import { geminiMarkResult } from './geminiResult';", 'const geminiMarkResult = globalThis.__localValidation;'],
 ]);
 const { readPageBatch } = await load('../src/ocr/batch.js');
+const { fitPhoto, moveCrop, photoCrop } = await load('../src/ocr/cropGeometry.js');
 const { loadScriptAssignment, saveScriptTotal } = await load('../src/ocr/assignment.js');
+
+test('crop coordinates follow the displayed portrait or rotated landscape image', () => {
+  assert.deepEqual(fitPhoto(1200, 1600, 300, 500), { x: 0, y: 50, width: 300, height: 400 });
+  assert.deepEqual(fitPhoto(1600, 1200, 300, 500), { x: 0, y: 137.5, width: 300, height: 225 });
+  const rect = { x: .25, y: .25, width: .5, height: .5 };
+  assert.deepEqual(photoCrop(rect, 1200, 1600), { originX: 300, originY: 400, width: 600, height: 800 });
+  assert.deepEqual(photoCrop(rect, 1600, 1200), { originX: 400, originY: 300, width: 800, height: 600 });
+  assert.deepEqual(moveCrop({ x: 0, y: 0, width: 1, height: 1 }, .2, .1, 'topLeft'),
+    { x: .2, y: .1, width: .8, height: .9 });
+  for (const handle of ['move', 'topLeft', 'topRight', 'bottomLeft', 'bottomRight']) {
+    for (const [dx, dy] of [[-10, -10], [10, 10], [-10, 10]]) {
+      const moved = moveCrop(rect, dx, dy, handle);
+      assert.ok(moved.x >= 0 && moved.y >= 0 && moved.width > 0 && moved.height > 0);
+      assert.ok(moved.x + moved.width <= 1 && moved.y + moved.height <= 1);
+    }
+  }
+});
+
+test('photo normalization never rotates implicitly; explicit rotation is saved before cropping', async () => {
+  const calls = [];
+  globalThis.__photoEdit = { manipulate: uri => {
+    calls.push(['open', uri]);
+    return { rotate: degrees => calls.push(['rotate', degrees]), crop: rect => calls.push(['crop', rect]),
+      release: () => calls.push(['releaseContext']),
+      renderAsync: async () => ({ width: 1600, height: 1200, release: () => calls.push(['releaseImage']),
+        saveAsync: async () => ({ uri: 'normalized.jpg' }) }),
+    };
+  } };
+  const { editMarkImage } = await load('../src/ocr/image.js', [
+    ["import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';", "const ImageManipulator = globalThis.__photoEdit, SaveFormat = { JPEG: 'jpeg' };"],
+    ["import { File } from 'expo-file-system';", 'const File = null;'],
+    ["import { Platform } from 'react-native';", "const Platform = { OS: 'android' };"],
+  ]);
+  const normalized = await editMarkImage({ uri: 'camera.jpg' });
+  assert.deepEqual(normalized, { uri: 'normalized.jpg', width: 1600, height: 1200 });
+  assert.ok(!calls.some(([op]) => op === 'rotate' || op === 'crop'));
+  calls.length = 0;
+  const crop = { originX: 100, originY: 200, width: 600, height: 800 };
+  await editMarkImage(normalized, { rotation: 90, crop });
+  assert.deepEqual(calls.slice(0, 3), [['open', 'normalized.jpg'], ['rotate', 90], ['crop', crop]]);
+  assert.deepEqual(calls.slice(-2), [['releaseImage'], ['releaseContext']]);
+});
 
 test('fast local reader preserves decimals, zero, fractions and labelled totals', () => {
   for (const [text, value] of [['.5', .5], ['0', 0], ['100', 100], ['7,5', 7.5], ['8 / 10', 8], ['Page total: 15', 15], ['TOTAL\n12', 12]]) {
@@ -114,10 +157,10 @@ test('atomic save refuses changed term, moved student, changed teacher and reduc
   }
 });
 
-test('local success avoids image encoding and cloud request; ambiguous local output falls back', async () => {
-  let local = { ok: true, value: .5, raw: '.5' }, uploads = 0, encodes = 0, releases = 0;
+test('photographed marks use image recognition even when text OCR might report a different digit', async () => {
+  let uploads = 0, encodes = 0, releases = 0;
   globalThis.__fastScanner = {
-    read: async () => local,
+    read: async () => { throw Error('Plain text OCR must not bypass handwriting recognition'); },
     prepare: async asset => ({ uri: asset.uri, encode: async () => { encodes++; return 'small-jpeg'; }, release: () => releases++ }),
     cloud: async (image, options) => { uploads++; assert.equal(image, 'small-jpeg'); assert.equal(options.mimeType, 'image/jpeg'); return { mark: { status: 'read', value: 8, raw: '8' } }; },
     validate: geminiMarkResult,
@@ -129,11 +172,10 @@ test('local success avoids image encoding and cloud request; ambiguous local out
     ["import { readOnDevice } from './local';", 'const readOnDevice = globalThis.__fastScanner.read;'],
     ["import { prepareMarkImage } from './image';", 'const prepareMarkImage = globalThis.__fastScanner.prepare;'],
   ]);
-  assert.equal((await readMarkPage({ uri: 'page.jpg' }, 100)).via, 'device');
-  assert.equal(uploads, 0); assert.equal(encodes, 0);
-  local = { ok: false };
-  assert.equal((await readMarkPage({ uri: 'page.jpg' }, 100)).via, 'gemini');
-  assert.equal(uploads, 1); assert.equal(encodes, 1); assert.equal(releases, 2);
+  const result = await readMarkPage({ uri: 'circled-on-lined-paper.jpg' }, 100);
+  assert.equal(result.via, 'gemini');
+  assert.equal(result.marks[0].value, 8);
+  assert.equal(uploads, 1); assert.equal(encodes, 1); assert.equal(releases, 1);
 });
 
 test('image processing caps the long edge without upscaling and encodes only on demand', async () => {
